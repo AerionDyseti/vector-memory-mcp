@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import { Database } from "bun:sqlite"; // Required for reading legacy v0.1.0 database
 import * as lancedb from "@lancedb/lancedb";
 import { existsSync, statSync } from "fs";
 // import * as sqliteVec from "sqlite-vec"; // Uncomment if running migration and install sqlite-vec
@@ -11,7 +11,7 @@ function deserializeVector(buffer: Uint8Array): number[] {
 }
 
 async function migrate() {
-  const oldDbPath = config.dbPath; // e.g. ~/.local/share/mcp-memory/memories.db
+  const oldDbPath = config.dbPath; // e.g. ~/.local/share/vector-memory-mcp/memories.db (previously mcp-memory)
   const newDbPath = oldDbPath + ".lancedb";
 
   console.log(`Migrating from: ${oldDbPath}`);
@@ -30,7 +30,7 @@ async function migrate() {
     sqlite = new Database(oldDbPath); 
     // sqliteVec.load(sqlite); // Uncomment if running migration
   } catch (e) {
-    console.error("Failed to open SQLite database:", e);
+    console.error("Failed to open legacy database:", e);
     return;
   }
 
@@ -38,7 +38,7 @@ async function migrate() {
   try {
     sqlite.query("SELECT count(*) FROM memories").get();
   } catch (e) {
-    console.error("Memories table not found in SQLite DB. Is this a valid vector-memory-mcp database?", e);
+    console.error("Memories table not found in legacy DB. Is this a valid v0.1.0 database?", e);
     return;
   }
 
@@ -88,7 +88,7 @@ async function migrate() {
   console.log(`Successfully migrated ${data.length} records to ${newDbPath}`);
   console.log(`\nTo finalize, update your config to point to the new DB, or rename the folder:`);
   console.log(`mv "${newDbPath}" "${oldDbPath}"`); 
-  // Note: LanceDB creates a DIRECTORY, while SQLite was a FILE. 
+  // Note: LanceDB creates a DIRECTORY, while Legacy DB was a FILE. 
   // This might require some path adjustments in the user's setup if they expect a file.
 }
 

@@ -25,7 +25,7 @@ Edit `~/.claude/config.json` and add:
 }
 ```
 
-> **Note:** This server uses `bun:sqlite` which is Bun-specific and requires running with Bun.
+> **Note:** This server requires running with Bun.
 
 ### 3. Restart Claude Code
 
@@ -59,7 +59,7 @@ Memories are stored in:
 ~/.local/share/vector-memory-mcp/memories.db
 ```
 
-You can inspect the database with any SQLite browser if needed.
+You can inspect the database using LanceDB tools if needed.
 
 ## Troubleshooting
 

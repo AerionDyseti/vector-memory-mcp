@@ -2,11 +2,11 @@
 
 ## Project Overview
 
-An MCP (Model Context Protocol) server that provides semantic memory storage using sqlite-vec, replacing traditional markdown files with RAG-powered, searchable memories. Designed for integration with Claude Code and other LLM CLI tools.
+An MCP (Model Context Protocol) server that provides semantic memory storage using LanceDB, replacing traditional markdown files with RAG-powered, searchable memories. Designed for integration with Claude Code and other LLM CLI tools.
 
 ### Core Concept
 
-Two-tier semantic memory storage system with project-level (`.memory/db`) and global (`~/.memory/db`) databases, using local embeddings for privacy and performance. Memories are small, narrowly-focused pieces of information that can be semantically searched and automatically retrieved.
+Two-tier semantic memory storage system with project-level (`.memory/db`) and global (`~/.local/share/vector-memory-mcp/memories.db`) databases, using local embeddings for privacy and performance. Memories are small, narrowly-focused pieces of information that can be semantically searched and automatically retrieved.
 
 ---
 
@@ -15,13 +15,12 @@ Two-tier semantic memory storage system with project-level (`.memory/db`) and gl
 ### Embedding Strategy
 
 - **Model**: Open-source local embeddings (no cloud APIs)
-- **Recommended**: FastEmbed with `BAAI/bge-small-en-v1.5` (384 dimensions)
-- **Alternative**: sentence-transformers with `all-MiniLM-L6-v2`
+- **Recommended**: @xenova/transformers with `Xenova/all-MiniLM-L6-v2`
 - **Rationale**: 384d provides good balance of performance, storage, and quality
 
 ### Storage Architecture
 
-- **Dual-level**: Project (`.memory/db`) + Global (`~/.memory/db`)
+- **Dual-level**: Project (`.memory/db`) + Global (`~/.local/share/vector-memory-mcp/memories.db`)
 - **Precedence**: Project-level memories override global in search results
 - **Detection**: Project identified by `.memory/` directory marker (not Git)
 
@@ -43,7 +42,7 @@ Two-tier semantic memory storage system with project-level (`.memory/db`) and gl
 
 ### 1. Storage Architecture
 
-- [ ] Two sqlite-vec databases: `~/.memory/db` (global) and `.memory/db` (project-level)
+- [ ] Two LanceDB databases: `~/.local/share/vector-memory-mcp/memories.db` (global) and `.memory/db` (project-level)
 - [ ] Project detection via `.memory/` directory marker (not Git root)
 - [ ] Project-level memories override global memories in search results
 - [ ] Both databases share identical schema but are queried with different context
@@ -51,52 +50,24 @@ Two-tier semantic memory storage system with project-level (`.memory/db`) and gl
 
 ### 2. Embedding System
 
-- [ ] Use open-source local embedding model (FastEmbed or sentence-transformers)
+- [ ] Use open-source local embedding model (@xenova/transformers)
 - [ ] Use 384 dimensions (good balance of performance/storage)
 - [ ] Support model versioning in metadata (track which model generated each embedding)
 - [ ] Implement lazy migration: re-embed memories when retrieved if model version differs
 - [ ] Provide manual `migrate_embeddings` tool to batch re-embed all memories
 
-### 3. Memory Schema
+### 3. Memory Schema (LanceDB)
 
-```sql
-CREATE TABLE memories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    content TEXT NOT NULL,
-    content_hash TEXT UNIQUE NOT NULL,  -- For deduplication
-
-    -- Metadata
-    priority TEXT DEFAULT 'NORMAL',  -- CORE, HIGH, NORMAL, LOW
-    category TEXT,                    -- User-defined categories
-    tags TEXT,                        -- JSON array of tags
-    project_id TEXT,                  -- Project identifier
-    source TEXT,                      -- auto_decision, auto_error, session_end, manual, import
-
-    -- Timestamps
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    -- Embedding metadata
-    embedding_model TEXT NOT NULL,    -- Model name/version
-    embedding_model_version TEXT,     -- Specific version
-    embedding_dimension INTEGER,      -- 384, 768, etc.
-
-    -- Usage tracking
-    access_count INTEGER DEFAULT 0,
-    last_accessed_at TIMESTAMP,
-    usage_contexts TEXT               -- JSON array of contexts where used
-);
-
-CREATE VIRTUAL TABLE vec_memories USING vec0(
-    memory_id INTEGER PRIMARY KEY,
-    embedding FLOAT[384]              -- Adjust based on chosen model
-);
-
--- Indexes for performance
-CREATE INDEX idx_priority ON memories(priority);
-CREATE INDEX idx_project_id ON memories(project_id);
-CREATE INDEX idx_created_at ON memories(created_at);
-CREATE INDEX idx_content_hash ON memories(content_hash);
+```typescript
+interface Memory {
+  id: string;
+  content: string;
+  embedding: number[]; // 384 dimensions
+  metadata: Record<string, any>;
+  created_at: Date;
+  updated_at: Date;
+  superseded_by: string | null;
+}
 ```
 
 ### 4. MCP Tools (7 total)
@@ -127,9 +98,9 @@ List/filter memories by metadata.
 
 #### `delete_memory`
 
-Remove memory by ID or hash.
+Remove memory by ID.
 
-- **Parameters**: memory_id OR content_hash
+- **Parameters**: memory_id
 - **Returns**: success status
 
 #### `update_memory`
@@ -212,7 +183,7 @@ Query both databases (project + global) in parallel.
 
 **Multi-factor scoring**:
 
-```python
+```javascript
 score = (
     0.4 * vector_similarity +
     0.2 * recency_score +      # Exponential decay from created_at
@@ -235,7 +206,7 @@ score = (
 
 **Fallback modes**:
 
-1. Vector search fails → Fall back to FTS5 text search
+1. Vector search fails → Fall back to text search
 2. Embedding generation fails → Store without embedding, flag for retry
 3. Database locked → Retry with exponential backoff (3 attempts)
 
@@ -243,18 +214,17 @@ score = (
 
 **Detailed errors to LLM**: Include error type, suggestion for resolution
 
-**Logging**: All errors logged to `~/.memory/logs/` for debugging
+**Logging**: All errors logged to `~/.local/share/vector-memory-mcp/logs/` for debugging
 
 ### 11. Configuration
 
-Config file: `~/.memory/config.json`
+Config file: `~/.local/share/vector-memory-mcp/config.json`
 
 ```json
 {
   "embedding": {
-    "model": "BAAI/bge-small-en-v1.5",
-    "dimension": 384,
-    "device": "cpu"
+    "model": "Xenova/all-MiniLM-L6-v2",
+    "dimension": 384
   },
   "retrieval": {
     "default_limit": 10,
@@ -291,16 +261,16 @@ Config file: `~/.memory/config.json`
 ### 13. Transport & Integration
 
 - [ ] Stdio transport only (sufficient for Claude Code)
-- [ ] FastMCP server implementation
-- [ ] Entry point: `uv run memory-server` or `memory-server` script
+- [ ] MCP server implementation
+- [ ] Entry point: `bunx vector-memory-mcp`
 - [ ] Configuration for Claude Code:
 
 ```json
 {
   "mcpServers": {
     "memory": {
-      "command": "memory-server",
-      "args": []
+      "command": "bunx",
+      "args": ["vector-memory-mcp"]
     }
   }
 }
@@ -316,15 +286,15 @@ Config file: `~/.memory/config.json`
 
 #### 1. Project Setup
 
-- [ ] Initialize project structure with uv/Poetry
-- [ ] Install dependencies: `fastmcp`, `sqlite-vec`, `fastembed` or `sentence-transformers`
+- [ ] Initialize project structure
+- [ ] Install dependencies: `@modelcontextprotocol/sdk`, `@lancedb/lancedb`, `@xenova/transformers`
 - [ ] Create basic configuration system
 - [ ] Set up logging infrastructure
 
 #### 2. Database Layer (Global Only)
 
-- [ ] Implement sqlite-vec schema (memories table + vec_memories virtual table)
-- [ ] Create database manager for **global storage only** (~/.memory/db)
+- [ ] Implement LanceDB schema
+- [ ] Create database manager for **global storage only**
 - [ ] Write database initialization utilities
 - [ ] Add indexes for performance
 
@@ -337,7 +307,7 @@ Config file: `~/.memory/config.json`
 
 #### 4. Basic MCP Server
 
-- [ ] Set up FastMCP server with stdio transport
+- [ ] Set up MCP server with stdio transport
 - [ ] Implement server lifecycle management
 - [ ] Add configuration loading
 - [ ] Basic error handling
@@ -441,8 +411,8 @@ Config file: `~/.memory/config.json`
 
 #### 15. Error Handling & Fallbacks
 
-- [ ] Add FTS5 text search fallback
-- [ ] Implement retry logic for database locks
+- [ ] Add text search fallback
+- [ ] Implement retry logic
 - [ ] Add graceful degradation
 - [ ] Comprehensive error messages
 
@@ -481,18 +451,11 @@ Config file: `~/.memory/config.json`
 
 ### Embeddings
 
-**Primary**: **FastEmbed** (`fastembed` package)
+**Primary**: **@xenova/transformers**
 
-- Lightweight, no PyTorch dependency
+- Lightweight, no Python dependency
 - Good quality for 384d embeddings
-- Model: `BAAI/bge-small-en-v1.5` (default in FastEmbed)
-- Falls back to sentence-transformers if needed
-
-**Alternative**: `sentence-transformers` with `all-MiniLM-L6-v2`
-
-- More mature, better documentation
-- Slightly larger but more flexible
-- Model: `sentence-transformers/all-MiniLM-L6-v2` (384d)
+- Model: `Xenova/all-MiniLM-L6-v2` (default)
 
 **Why 384 dimensions?**
 
@@ -503,17 +466,17 @@ Config file: `~/.memory/config.json`
 
 ### Database
 
-**sqlite-vec**
+**LanceDB**
 
-- Pure C extension, very fast
-- Supports float vectors natively
-- Works anywhere SQLite works
+- Fast vector search
+- Local storage
+- TypeScript native
 
 ### MCP Framework
 
-**FastMCP** (Python SDK)
+**@modelcontextprotocol/sdk**
 
-- Simplifies MCP server creation
+- Official TypeScript SDK
 - Built-in tool/resource decorators
 - Good error handling
 
@@ -582,7 +545,7 @@ Config file: `~/.memory/config.json`
 1. **Local-only**: All embeddings generated locally, no cloud APIs
 2. **Data isolation**: Project and global DBs are separate
 3. **No telemetry**: No usage data sent externally
-4. **Secure storage**: SQLite databases with appropriate file permissions
+4. **Secure storage**: Databases with appropriate file permissions
 5. **Sensitive data**: User responsible for not storing secrets in memories
 
 ---
@@ -627,7 +590,7 @@ Config file: `~/.memory/config.json`
 
 ### Q1: Embedding Model Choice
 
-**Decision**: Start with FastEmbed (BAAI/bge-small-en-v1.5, 384d)
+**Decision**: Start with @xenova/transformers (Xenova/all-MiniLM-L6-v2, 384d)
 **Rationale**: Lightweight, no heavy dependencies, good quality, easy to swap later
 
 ### Q2: Resources vs Tools
@@ -659,24 +622,21 @@ Once implementation begins:
 ```bash
 # Clone repository
 git clone <repo-url>
-cd memory-server
+cd vector-memory-mcp
 
 # Install dependencies
-uv pip install -e .
+bun install
 
-# Initialize database
-memory-server init
-
-# Run server (stdio mode)
-memory-server
+# Run server
+bun run src/index.ts
 
 # Configure Claude Code
 # Add to ~/.claude/config.json:
 {
   "mcpServers": {
     "memory": {
-      "command": "memory-server",
-      "args": []
+      "command": "bunx",
+      "args": ["vector-memory-mcp"]
     }
   }
 }
@@ -688,9 +648,9 @@ memory-server
 
 - **Issues**: GitHub Issues
 - **Discussions**: GitHub Discussions
-- **Documentation**: `docs/` directory (to be created)
+- **Documentation**: `docs/` directory
 
 ---
 
-*Last Updated: 2025-11-06*
-*Version: 1.0 (Initial Planning)*
+*Last Updated: 2025-11-27*
+*Version: 2.0 (Refactored for LanceDB)*

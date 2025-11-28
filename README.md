@@ -55,7 +55,7 @@ A production-ready MCP (Model Context Protocol) server that provides semantic me
 - [Bun](https://bun.sh/) 1.0+
 - Claude Code or another MCP-compatible client
 
-> **Note:** This server uses Bun-specific APIs (`bun:sqlite`) and requires Bun to run.
+> **Note:** This server requires Bun to run.
 
 ### Installation
 
@@ -345,7 +345,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## 🙏 Acknowledgments
 
 - Built with [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) - Official MCP TypeScript SDK
-- Uses [sqlite-vec](https://github.com/asg017/sqlite-vec) by Alex Garcia for fast vector search
+- Uses [LanceDB](https://lancedb.com/) for fast, local vector search
 - Powered by [@xenova/transformers](https://github.com/xenova/transformers.js) for local embeddings
 - Database layer via [Drizzle ORM](https://orm.drizzle.team/)
 - Inspired by [doobidoo's mcp-memory-service](https://github.com/doobidoo/mcp-memory-service)
@@ -356,7 +356,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - [Model Context Protocol](https://modelcontextprotocol.io) - Official MCP specification
 - [Claude Code](https://claude.ai/code) - AI coding assistant from Anthropic
-- [sqlite-vec](https://github.com/asg017/sqlite-vec) - Vector search for SQLite
+- [LanceDB](https://lancedb.com/) - Fast, local vector search
 - [Transformers.js](https://huggingface.co/docs/transformers.js) - Run transformers in JavaScript
 
 ---

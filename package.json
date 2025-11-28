@@ -28,13 +28,7 @@
     "test": "bun test",
     "test:coverage": "bun test --coverage"
   },
-  "keywords": [
-    "mcp",
-    "memory",
-    "rag",
-    "embeddings",
-    "sqlite"
-  ],
+    "keywords": ["mcp", "memory", "rag", "embeddings", "lancedb"],
   "license": "MIT",
   "dependencies": {
     "@lancedb/lancedb": "^0.22.3",

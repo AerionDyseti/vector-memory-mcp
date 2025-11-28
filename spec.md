@@ -19,7 +19,7 @@ A simple, zero-configuration RAG memory server for MCP clients (like Claude Code
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
 | Language | TypeScript | Type safety, modern ecosystem |
-| Runtime | Bun | Fast startup, built-in SQLite (used for config/metadata if needed), great DX |
+| Runtime | Bun | Fast startup, great DX |
 | MCP SDK | `@modelcontextprotocol/sdk` | Official TypeScript SDK |
 | Embeddings | `@xenova/transformers` | Runs locally in JS/TS, no Python dependency needed |
 | Vector Storage | LanceDB | Fast, local, efficient vector search |
