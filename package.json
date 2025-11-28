@@ -1,6 +1,6 @@
 {
   "name": "@aeriondyseti/mcp-memory",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A zero-configuration RAG memory server for MCP clients",
   "type": "module",
   "main": "src/index.ts",
@@ -28,7 +28,13 @@
     "test": "bun test",
     "test:coverage": "bun test --coverage"
   },
-  "keywords": ["mcp", "memory", "rag", "embeddings", "sqlite"],
+  "keywords": [
+    "mcp",
+    "memory",
+    "rag",
+    "embeddings",
+    "sqlite"
+  ],
   "license": "MIT",
   "dependencies": {
     "@lancedb/lancedb": "^0.22.3",
