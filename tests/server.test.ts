@@ -23,7 +23,7 @@ describe("mcp", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = mkdtempSync(join(tmpdir(), "mcp-memory-test-"));
+    tmpDir = mkdtempSync(join(tmpdir(), "vector-memory-mcp-test-"));
     const dbPath = join(tmpDir, "test.lancedb");
     db = await connectToDatabase(dbPath);
     const repository = new MemoryRepository(db);

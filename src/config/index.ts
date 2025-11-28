@@ -11,7 +11,7 @@ const DEFAULT_DB_PATH = join(
   homedir(),
   ".local",
   "share",
-  "mcp-memory",
+  "vector-memory-mcp",
   "memories.db"
 );
 
@@ -20,8 +20,8 @@ const DEFAULT_EMBEDDING_DIMENSION = 384;
 
 export function loadConfig(): Config {
   return {
-    dbPath: process.env.MCP_MEMORY_DB_PATH ?? DEFAULT_DB_PATH,
-    embeddingModel: process.env.MCP_MEMORY_MODEL ?? DEFAULT_EMBEDDING_MODEL,
+    dbPath: process.env.VECTOR_MEMORY_DB_PATH ?? DEFAULT_DB_PATH,
+    embeddingModel: process.env.VECTOR_MEMORY_MODEL ?? DEFAULT_EMBEDDING_MODEL,
     embeddingDimension: DEFAULT_EMBEDDING_DIMENSION,
   };
 }

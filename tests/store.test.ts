@@ -19,7 +19,7 @@ describe("MemoryService", () => {
   let dbPath: string;
 
   beforeEach(async () => {
-    tmpDir = mkdtempSync(join(tmpdir(), "mcp-memory-test-"));
+    tmpDir = mkdtempSync(join(tmpdir(), "vector-memory-mcp-test-"));
     dbPath = join(tmpDir, "test.lancedb");
     db = await connectToDatabase(dbPath);
     repository = new MemoryRepository(db);
@@ -248,7 +248,7 @@ describe("MemoryRepository", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = mkdtempSync(join(tmpdir(), "mcp-memory-test-"));
+    tmpDir = mkdtempSync(join(tmpdir(), "vector-memory-mcp-test-"));
     const dbPath = join(tmpDir, "test.lancedb");
     db = await connectToDatabase(dbPath);
     repository = new MemoryRepository(db);

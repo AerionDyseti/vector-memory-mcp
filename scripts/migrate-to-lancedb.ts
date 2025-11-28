@@ -38,7 +38,7 @@ async function migrate() {
   try {
     sqlite.query("SELECT count(*) FROM memories").get();
   } catch (e) {
-    console.error("Memories table not found in SQLite DB. Is this a valid mcp-memory database?", e);
+    console.error("Memories table not found in SQLite DB. Is this a valid vector-memory-mcp database?", e);
     return;
   }
 
