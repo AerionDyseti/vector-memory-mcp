@@ -11,7 +11,7 @@ import type { MemoryService } from "../services/memory.service.js";
 
 export function createServer(memoryService: MemoryService): Server {
   const server = new Server(
-    { name: "mcp-memory", version: "0.1.0" },
+    { name: "mcp-memory", version: "0.2.0" },
     { capabilities: { tools: {} } }
   );
 
