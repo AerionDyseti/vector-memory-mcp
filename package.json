@@ -1,5 +1,5 @@
 {
-  "name": "mcp-memory",
+  "name": "@aeriondyseti/mcp-memory",
   "version": "0.1.0",
   "description": "A zero-configuration RAG memory server for MCP clients",
   "type": "module",
@@ -7,10 +7,23 @@
   "bin": {
     "mcp-memory": "src/index.ts"
   },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AerionDyseti/mcp-memory-server.git"
+  },
+  "author": "AerionDyseti",
+  "bugs": {
+    "url": "https://github.com/AerionDyseti/mcp-memory-server/issues"
+  },
+  "homepage": "https://github.com/AerionDyseti/mcp-memory-server#readme",
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun --watch run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target node",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:coverage": "bun test --coverage"

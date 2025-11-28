@@ -7,7 +7,8 @@ A production-ready MCP (Model Context Protocol) server that provides semantic me
 **Perfect for:** Software teams maintaining architectural knowledge, developers juggling multiple projects, and anyone building with AI assistants like Claude Code.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+[![Bun](https://img.shields.io/badge/Bun-Required-black.svg)](https://bun.sh/)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 
 ---
@@ -24,10 +25,10 @@ A production-ready MCP (Model Context Protocol) server that provides semantic me
 - Considers relevance, recency, priority, and usage frequency
 - Context-aware retrieval based on conversation flow
 
-### 📊 **Dual-Level Memory Storage**
-- **Project-specific** memories (`.memory/db` in your repo)
-- **Global** memories (`~/.memory/db` for cross-project knowledge)
-- Automatic precedence handling (project overrides global)
+### 📊 **Smart Memory Storage**
+- Stores memories in `~/.local/share/mcp-memory/memories.db`
+- Fast SQLite-based storage with vector search capabilities
+- Memories persist across sessions and projects
 
 ### ⚡ **High Performance**
 - Sub-100ms search latency for 1000+ memories
@@ -39,11 +40,11 @@ A production-ready MCP (Model Context Protocol) server that provides semantic me
 - Session hooks for automatic context injection
 - Standard MCP protocol (compatible with future clients)
 
-### 🤖 **Smart Automation**
-- Auto-detect architectural decisions
-- Capture bug fixes and solutions
-- Generate session summaries
-- Deduplicate similar memories
+### 🛠️ **Developer-Friendly**
+- Zero-configuration setup
+- Built with Bun for maximum performance
+- Simple MCP tools for storing and searching
+- TypeScript for type safety
 
 ---
 
@@ -51,9 +52,10 @@ A production-ready MCP (Model Context Protocol) server that provides semantic me
 
 ### Prerequisites
 
-- Python 3.11 or higher
-- [uv](https://github.com/astral-sh/uv) (recommended) or pip
+- [Bun](https://bun.sh/) 1.0+
 - Claude Code or another MCP-compatible client
+
+> **Note:** This server uses Bun-specific APIs (`bun:sqlite`) and requires Bun to run.
 
 ### Installation
 
@@ -63,10 +65,7 @@ git clone https://github.com/AerionDyseti/mcp-memory-server.git
 cd mcp-memory-server
 
 # Install dependencies
-uv sync
-
-# Or with pip
-pip install -e .
+bun install
 ```
 
 ### Configure Claude Code
@@ -77,22 +76,22 @@ Add to your `~/.claude/config.json`:
 {
   "mcpServers": {
     "memory": {
-      "command": "memory-server",
-      "args": []
+      "command": "bun",
+      "args": ["run", "/absolute/path/to/mcp-memory-server/src/index.ts"]
     }
   }
 }
 ```
 
-### Initialize Your First Memory
+Replace `/absolute/path/to/` with your actual installation path.
 
-Create a `.memory/` directory in your project:
+### Start Using It
 
-```bash
-mkdir .memory
-```
-
-Start using Claude Code in that directory - memories will be automatically stored and retrieved!
+That's it! Restart Claude Code and you'll have access to memory tools:
+- `store_memory` - Save information for later recall
+- `search_memories` - Find relevant memories semantically
+- `get_memory` - Retrieve a specific memory by ID
+- `delete_memory` - Remove a memory
 
 ---
 
@@ -100,57 +99,55 @@ Start using Claude Code in that directory - memories will be automatically store
 
 ### Storing Memories
 
-Memories are stored automatically when you:
-- Make architectural decisions
-- Solve bugs or errors
-- End a session (session summary)
+Ask Claude Code to remember things for you:
 
-Or manually using the MCP tool:
+```
+You: "Remember that we use Drizzle ORM for database access"
+Claude: [calls store_memory tool]
+```
 
-```python
-# Claude Code will call this tool
-store_memory(
-    content="Use FastAPI for REST APIs with automatic OpenAPI docs",
-    tags=["architecture", "api", "fastapi"],
-    priority="HIGH"
-)
+Or Claude Code can store memories directly:
+```json
+{
+  "content": "Use Drizzle ORM for type-safe database access",
+  "metadata": {
+    "tags": ["architecture", "database"],
+    "category": "tooling"
+  }
+}
 ```
 
 ### Searching Memories
 
-Search happens automatically at session start, or manually:
+Claude Code automatically searches memories when relevant, or you can ask:
 
-```python
-# Semantic search across all memories
-search_memory(
-    query="how should I handle authentication?",
-    limit=10
-)
+```
+You: "What did we decide about the database?"
+Claude: [calls search_memories with query about database decisions]
+```
+
+Search parameters:
+```json
+{
+  "query": "authentication strategy",
+  "limit": 10
+}
 ```
 
 ### Managing Memories
 
-```python
-# List memories with filters
-list_memories(
-    filters={"priority": "HIGH", "tags": ["architecture"]},
-    limit=20
-)
+Retrieve a specific memory:
+```json
+{
+  "id": "memory-id-here"
+}
+```
 
-# Update existing memory
-update_memory(
-    memory_id="abc123",
-    content="Updated content",
-    tags=["new-tag"]
-)
-
-# Remove duplicate memories
-deduplicate_memories(
-    similarity_threshold=0.95
-)
-
-# Delete specific memory
-delete_memory(memory_id="abc123")
+Delete a memory:
+```json
+{
+  "id": "memory-id-here"
+}
 ```
 
 ---
@@ -159,31 +156,34 @@ delete_memory(memory_id="abc123")
 
 ```
 mcp-memory-server/
-├── src/memory_server/
-│   ├── __init__.py
-│   ├── server.py           # FastMCP server implementation
-│   ├── service.py          # Memory service (store, search, etc.)
-│   ├── embeddings.py       # FastEmbed integration
-│   ├── database.py         # sqlite-vec database layer
-│   ├── scoring.py          # Multi-factor scoring algorithm
-│   └── tools/              # MCP tool implementations
+├── src/
+│   ├── index.ts            # Entry point
+│   ├── config/             # Configuration management
+│   ├── db/                 # Database layer (Drizzle ORM + sqlite-vec)
+│   ├── services/
+│   │   ├── embeddings.service.ts  # Embeddings via @xenova/transformers
+│   │   └── memory.service.ts      # Core memory operations
+│   └── mcp/
+│       ├── server.ts       # MCP server setup
+│       ├── tools.ts        # MCP tool definitions
+│       └── handlers.ts     # Tool request handlers
 ├── tests/
-│   ├── unit/               # Fast unit tests (mocked)
-│   ├── integration/        # Integration tests (real embeddings)
-│   └── e2e/                # End-to-end MCP client tests
-├── docs/
-│   ├── IMPLEMENTATION_PLAN.md
-│   └── TESTING_PLAN.md
-└── pyproject.toml
+│   ├── memory.test.ts
+│   └── embeddings.test.ts
+├── bin/
+│   └── mcp-memory.js       # Executable entry point
+└── package.json
 ```
 
 ### Technology Stack
 
-- **MCP Framework**: FastMCP (official Python SDK)
+- **MCP Framework**: @modelcontextprotocol/sdk (official SDK)
 - **Vector Database**: sqlite-vec (fast, local, SQLite-based)
-- **Embeddings**: FastEmbed (BAAI/bge-small-en-v1.5, 384 dimensions)
-- **Language**: Python 3.11+
-- **Testing**: pytest + pytest-asyncio
+- **ORM**: Drizzle ORM with @aeriondyseti/drizzle-sqlite-vec
+- **Embeddings**: @xenova/transformers (Xenova/all-MiniLM-L6-v2, 384 dimensions)
+- **Language**: TypeScript 5.0+
+- **Runtime**: Bun 1.0+ (required for bun:sqlite)
+- **Testing**: Bun test
 
 ---
 
@@ -192,80 +192,54 @@ mcp-memory-server/
 ### 1. Memory Storage
 
 ```
-User interacts with Claude Code
+Claude Code calls store_memory tool
          ↓
-Decision/solution detected
-         ↓
-Content → FastEmbed → 384d vector
+Content → @xenova/transformers → 384d vector
          ↓
 Store in sqlite-vec with metadata
          ↓
-(content, embedding, tags, priority, timestamp)
+~/.local/share/mcp-memory/memories.db
 ```
 
 ### 2. Memory Retrieval
 
 ```
-Session starts / query made
+Claude Code calls search_memories
          ↓
-Query → FastEmbed → 384d vector
+Query → @xenova/transformers → 384d vector
          ↓
 KNN search in sqlite-vec
          ↓
-Multi-factor scoring:
-  • 40% vector similarity
-  • 20% recency
-  • 20% priority
-  • 20% usage frequency
+Vector similarity scoring
          ↓
 Return top N relevant memories
-```
-
-### 3. Dual-Level Memory
-
-```
-~/.memory/db (global)          .memory/db (project)
-    ↓                               ↓
-Cross-cutting concerns      Project-specific knowledge
-    ↓                               ↓
-         ↓___________↓_______________↓
-                     ↓
-              Merged results
-           (project takes precedence)
 ```
 
 ---
 
 ## 🔧 Configuration
 
-Create `~/.memory/config.json` to customize:
+The server uses environment variables for configuration:
 
+- `MCP_MEMORY_DB_PATH` - Custom database path (default: `~/.local/share/mcp-memory/memories.db`)
+- `MCP_MEMORY_MODEL` - Embedding model to use (default: `Xenova/all-MiniLM-L6-v2`)
+
+Example:
+```bash
+export MCP_MEMORY_DB_PATH="/path/to/custom/memories.db"
+export MCP_MEMORY_MODEL="Xenova/all-MiniLM-L6-v2"
+```
+
+Or in your Claude Code config:
 ```json
 {
-  "embedding": {
-    "model": "BAAI/bge-small-en-v1.5",
-    "dimension": 384,
-    "device": "cpu"
-  },
-  "retrieval": {
-    "default_limit": 10,
-    "session_start_limit": 8,
-    "similarity_threshold": 0.7,
-    "scoring_weights": {
-      "similarity": 0.4,
-      "recency": 0.2,
-      "priority": 0.2,
-      "usage": 0.2
+  "mcpServers": {
+    "memory": {
+      "command": "mcp-memory",
+      "env": {
+        "MCP_MEMORY_DB_PATH": "/custom/path/memories.db"
+      }
     }
-  },
-  "auto_triggers": {
-    "session_end": true,
-    "decision_detection": true,
-    "error_resolution": true
-  },
-  "deduplication": {
-    "auto_check": true,
-    "similarity_threshold": 0.9
   }
 }
 ```
@@ -277,72 +251,75 @@ Create `~/.memory/config.json` to customize:
 ### Running Tests
 
 ```bash
-# Fast unit tests
-pytest tests/unit/ -v
+# Run all tests
+bun test
 
-# Integration tests
-pytest tests/integration/ -v
+# Run with coverage
+bun test --coverage
 
-# Full test suite with coverage
-pytest --cov=memory_server --cov-report=html
-
-# Watch mode (auto-run on changes)
-ptw tests/unit/ -- -v
+# Type checking
+bun run typecheck
 ```
 
 ### Development Mode
 
-Use separate databases for development vs. production:
-
 ```bash
-# Switch to development mode
-touch ~/.memory/.dev-mode
+# Watch mode - auto-restart on file changes
+bun run dev
 
-# Switch to production mode
-rm ~/.memory/.dev-mode
-
-# Or use aliases (add to ~/.bashrc or ~/.zshrc)
-alias memory-dev='touch ~/.memory/.dev-mode && echo "✓ Dev mode"'
-alias memory-prod='rm -f ~/.memory/.dev-mode && echo "✓ Prod mode"'
+# Run directly without building
+bun run src/index.ts
 ```
 
-See [TESTING_PLAN.md](docs/TESTING_PLAN.md) for comprehensive development workflow.
+### Building
 
----
+```bash
+# Build for production
+bun run build
 
-## 📚 Documentation
-
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) - Complete 5-week implementation roadmap
-- [TESTING_PLAN.md](TESTING_PLAN.md) - Testing strategy and development workflow
-- [API Documentation](docs/API.md) *(coming soon)*
-- [Contributing Guide](CONTRIBUTING.md) *(coming soon)*
+# Output will be in dist/
+```
 
 ---
 
 ## 🗺️ Roadmap
 
 ### ✅ Phase 1: Foundation (Current)
-- Core database and embedding infrastructure
-- Basic MCP tools (store, search, list, delete)
-- Project detection and dual-level storage
+- ✅ Core database with sqlite-vec
+- ✅ Embedding generation with @xenova/transformers
+- ✅ Basic MCP tools (store, search, get, delete)
+- ✅ TypeScript implementation with Drizzle ORM
 
-### 🚧 Phase 2: Intelligence (Next)
-- Multi-factor scoring implementation
-- Automatic trigger detection
-- Memory deduplication
-- Session-end summaries
+### 🚧 Phase 2: Enhanced Search & Scoring
+- Multi-factor scoring algorithm (similarity, recency, priority, usage frequency)
+- Configurable scoring weights
+- Priority levels for memories
+- Usage tracking and frequency-based ranking
+- Metadata filtering and advanced tagging
 
-### 📋 Phase 3: Advanced Features
-- Natural language triggers (85%+ accuracy)
+### 📋 Phase 3: Dual-Level Memory System
+- Project-specific memories (`.memory/db` in repo)
+- Global memories (`~/.local/share/mcp-memory/`)
+- Automatic precedence handling (project overrides global)
+- Project detection and context switching
+
+### 🎯 Phase 4: Smart Automation
+- Auto-detect architectural decisions
+- Capture bug fixes and solutions automatically
+- Generate session-end summaries
+- Natural language trigger detection (85%+ accuracy)
 - Continuous conversation monitoring
-- Smart priority suggestions
-- Markdown import/export
 
-### 🔮 Future
-- Multi-modal memories (images, diagrams)
+### 🔮 Phase 5: Advanced Features
+- Memory deduplication with similarity threshold
+- Batch operations (import/export)
+- Markdown import/export
 - Memory clustering and visualization
 - Cross-project insights
-- Multi-CLI support (Gemini CLI, Cursor, etc.)
+- Multi-modal memories (images, diagrams)
+- Session hooks for automatic context injection
+- Multi-CLI support (Cursor, Windsurf, etc.)
+- Smart priority suggestions
 
 ---
 
@@ -368,10 +345,11 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## 🙏 Acknowledgments
 
-- Built on [FastMCP](https://github.com/modelcontextprotocol/python-sdk) from the Model Context Protocol team
+- Built with [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) - Official MCP TypeScript SDK
 - Uses [sqlite-vec](https://github.com/asg017/sqlite-vec) by Alex Garcia for fast vector search
-- Powered by [FastEmbed](https://github.com/qdrant/fastembed) from Qdrant for local embeddings
-- Inspired by [doobidoo's mcp-memory-service](https://github.com/doobidoo/mcp-memory-service) natural language triggers
+- Powered by [@xenova/transformers](https://github.com/xenova/transformers.js) for local embeddings
+- Database layer via [Drizzle ORM](https://orm.drizzle.team/)
+- Inspired by [doobidoo's mcp-memory-service](https://github.com/doobidoo/mcp-memory-service)
 
 ---
 
@@ -380,7 +358,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 - [Model Context Protocol](https://modelcontextprotocol.io) - Official MCP specification
 - [Claude Code](https://claude.ai/code) - AI coding assistant from Anthropic
 - [sqlite-vec](https://github.com/asg017/sqlite-vec) - Vector search for SQLite
-- [FastEmbed](https://github.com/qdrant/fastembed) - Fast, lightweight embeddings
+- [Transformers.js](https://huggingface.co/docs/transformers.js) - Run transformers in JavaScript
 
 ---
 
@@ -394,42 +372,35 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## ⚡ Quick Examples
 
-### Example 1: Architectural Decision
+### Example 1: Storing a Decision
 
 ```
-You: "I'm deciding between PostgreSQL and SQLite for this project"
-Claude: [Searches memories for database decisions]
-
-You: "Let's go with SQLite for simplicity"
-Claude: [Automatically stores decision]
-  ✓ Stored: "Use SQLite for database - prioritizing simplicity over scale"
-  Tags: [architecture, database, sqlite]
-  Priority: HIGH
+You: "Remember that we decided to use Drizzle ORM for type-safe database access"
+Claude: I'll store that for you.
+  [Calls store_memory tool with content and metadata]
+  ✓ Memory stored successfully
 ```
 
-### Example 2: Bug Fix
+### Example 2: Searching Memories
 
 ```
-You: "Getting 'database is locked' errors in tests"
-Claude: [Searches memories for similar errors]
-  Found: "Enable WAL mode: PRAGMA journal_mode=WAL"
+You: "What did we decide about database tooling?"
+Claude: Let me search for that...
+  [Calls search_memories with query about database]
+  Found: "Use Drizzle ORM for type-safe database access"
 
-You: "That worked!"
-Claude: [Automatically stores solution]
-  ✓ Stored: "SQLite database lock fix - use WAL mode"
-  Tags: [bug-fix, sqlite, testing]
+Based on our previous decision, we're using Drizzle ORM...
 ```
 
-### Example 3: Session Summary
+### Example 3: Managing Memories
 
 ```
-[End of session]
-Claude: [Reviews conversation, extracts key learnings]
-  ✓ Stored: "Implemented JWT authentication with FastAPI"
-  ✓ Stored: "Used Pydantic for request validation"
-  ✓ Stored: "Added pytest fixtures for auth testing"
-
-Session summary saved with 3 memories.
+You: "Show me what you remember about authentication"
+Claude: [Searches for authentication-related memories]
+  Found 3 memories:
+  1. "Use JWT tokens for API authentication"
+  2. "Store refresh tokens in httpOnly cookies"
+  3. "Implement rate limiting on auth endpoints"
 ```
 
 ---
