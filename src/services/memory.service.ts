@@ -10,10 +10,15 @@ export class MemoryService {
     private embeddings: EmbeddingsService
   ) {}
 
-  async store(content: string, metadata: Record<string, unknown> = {}): Promise<Memory> {
+  async store(
+    content: string,
+    metadata: Record<string, unknown> = {},
+    embeddingText?: string
+  ): Promise<Memory> {
     const id = randomUUID();
     const now = new Date();
-    const embedding = await this.embeddings.embed(content);
+    const textToEmbed = embeddingText ?? content;
+    const embedding = await this.embeddings.embed(textToEmbed);
 
     const memory: Memory = {
       id,

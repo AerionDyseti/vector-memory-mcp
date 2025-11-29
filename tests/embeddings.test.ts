@@ -1,11 +1,18 @@
 import { describe, expect, test, beforeAll } from "bun:test";
 import { EmbeddingsService } from "../src/services/embeddings.service";
+import {
+  isModelAvailable,
+  createEmbeddingsService,
+  testWithModel,
+} from "./utils/model-loader";
 
 describe("EmbeddingsService", () => {
   let service: EmbeddingsService;
 
   beforeAll(() => {
-    service = new EmbeddingsService("Xenova/all-MiniLM-L6-v2", 384);
+    if (isModelAvailable()) {
+      service = createEmbeddingsService();
+    }
   });
 
   describe("constructor", () => {
@@ -16,19 +23,19 @@ describe("EmbeddingsService", () => {
   });
 
   describe("dimension", () => {
-    test("returns configured dimension", () => {
+    testWithModel("returns configured dimension", () => {
       expect(service.dimension).toBe(384);
     });
   });
 
   describe("embed", () => {
-    test("returns array of correct dimension", async () => {
+    testWithModel("returns array of correct dimension", async () => {
       const embedding = await service.embed("hello world");
       expect(embedding).toBeArray();
       expect(embedding.length).toBe(384);
     });
 
-    test("returns numbers in reasonable range", async () => {
+    testWithModel("returns numbers in reasonable range", async () => {
       const embedding = await service.embed("test text");
       for (const value of embedding) {
         expect(typeof value).toBe("number");
@@ -36,7 +43,7 @@ describe("EmbeddingsService", () => {
       }
     });
 
-    test("produces different embeddings for different texts", async () => {
+    testWithModel("produces different embeddings for different texts", async () => {
       const embedding1 = await service.embed("hello world");
       const embedding2 = await service.embed("goodbye universe");
 
@@ -50,7 +57,7 @@ describe("EmbeddingsService", () => {
       expect(hasDifference).toBe(true);
     });
 
-    test("produces similar embeddings for similar texts", async () => {
+    testWithModel("produces similar embeddings for similar texts", async () => {
       const embedding1 = await service.embed("the cat sat on the mat");
       const embedding2 = await service.embed("a cat sitting on a mat");
 
@@ -69,7 +76,7 @@ describe("EmbeddingsService", () => {
   });
 
   describe("embedBatch", () => {
-    test("returns array of embeddings", async () => {
+    testWithModel("returns array of embeddings", async () => {
       const embeddings = await service.embedBatch(["hello", "world"]);
       expect(embeddings).toBeArray();
       expect(embeddings.length).toBe(2);
@@ -77,13 +84,13 @@ describe("EmbeddingsService", () => {
       expect(embeddings[1].length).toBe(384);
     });
 
-    test("handles empty array", async () => {
+    testWithModel("handles empty array", async () => {
       const embeddings = await service.embedBatch([]);
       expect(embeddings).toBeArray();
       expect(embeddings.length).toBe(0);
     });
 
-    test("produces same results as individual embed calls", async () => {
+    testWithModel("produces same results as individual embed calls", async () => {
       const texts = ["hello", "world"];
       const batchEmbeddings = await service.embedBatch(texts);
       const individualEmbeddings = await Promise.all(

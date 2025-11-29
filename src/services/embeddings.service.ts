@@ -1,4 +1,4 @@
-import { pipeline, type FeatureExtractionPipeline } from "@xenova/transformers";
+import { pipeline, type FeatureExtractionPipeline } from "@huggingface/transformers";
 
 export class EmbeddingsService {
   private modelName: string;

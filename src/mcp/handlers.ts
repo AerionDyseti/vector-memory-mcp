@@ -6,8 +6,9 @@ export async function handleStoreMemory(
   service: MemoryService
 ): Promise<CallToolResult> {
   const content = args?.content as string;
+  const embeddingText = args?.embedding_text as string | undefined;
   const metadata = (args?.metadata as Record<string, unknown>) ?? {};
-  const memory = await service.store(content, metadata);
+  const memory = await service.store(content, metadata, embeddingText);
 
   return {
     content: [{ type: "text", text: `Memory stored with ID: ${memory.id}` }],

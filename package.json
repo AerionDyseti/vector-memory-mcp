@@ -1,6 +1,6 @@
 {
   "name": "@aeriondyseti/vector-memory-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A zero-configuration RAG memory server for MCP clients",
   "type": "module",
   "main": "src/index.ts",
@@ -24,16 +24,18 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun --watch run src/index.ts",
-    "typecheck": "tsc --noEmit",
-    "test": "bun test",
-    "test:coverage": "bun test --coverage"
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test --preload ./tests/preload.ts",
+    "test:quick": "bun test",
+    "test:coverage": "bun test --preload ./tests/preload.ts --coverage",
+    "test:preload": "bun run tests/preload.ts"
   },
     "keywords": ["mcp", "memory", "rag", "embeddings", "lancedb"],
   "license": "MIT",
   "dependencies": {
     "@lancedb/lancedb": "^0.22.3",
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "@huggingface/transformers": "^2.17.0",
+    "@huggingface/transformers": "^3.8.0",
     "apache-arrow": "^21.1.0"
   },
   "devDependencies": {

@@ -2,13 +2,24 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 export const storeMemoryTool: Tool = {
   name: "store_memory",
-  description: "Store a new memory. Use this to save information for later recall.",
+  description:
+    "Store a new memory. Use this to save information for later recall. " +
+    "IMPORTANT: If the content exceeds 1000 characters, you MUST provide an embedding_text " +
+    "parameter with a concise summary (under 1000 characters) that captures the key semantic " +
+    "meaning for search purposes. The full content will still be stored and returned in search results.",
   inputSchema: {
     type: "object",
     properties: {
       content: {
         type: "string",
         description: "The text content to store as a memory",
+      },
+      embedding_text: {
+        type: "string",
+        description:
+          "A concise summary (under 1000 characters) used for generating the search embedding. " +
+          "REQUIRED when content exceeds 1000 characters. If not provided, the full content is used for embedding, " +
+          "which may be truncated by the embedding model and result in poor search relevance.",
       },
       metadata: {
         type: "object",

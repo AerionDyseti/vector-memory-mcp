@@ -161,7 +161,7 @@ vector-memory-mcp/
 │   ├── config/             # Configuration management
 │   ├── db/                 # Database layer (LanceDB)
 │   ├── services/
-│   │   ├── embeddings.service.ts  # Embeddings via @xenova/transformers
+│   │   ├── embeddings.service.ts  # Embeddings via @huggingface/transformers
 │   │   └── memory.service.ts      # Core memory operations
 │   └── mcp/
 │       ├── server.ts       # MCP server setup
@@ -285,7 +285,7 @@ bun run build
 
 ### ✅ Phase 1: Foundation (Current)
 - ✅ Core database with LanceDB
-- ✅ Embedding generation with @xenova/transformers
+- ✅ Embedding generation with @huggingface/transformers
 - ✅ Basic MCP tools (store, search, get, delete)
 - ✅ TypeScript implementation with Drizzle ORM
 

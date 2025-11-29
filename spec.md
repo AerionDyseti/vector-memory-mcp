@@ -102,7 +102,7 @@ vector-memory-mcp/
 │   ├── config/             # Configuration management
 │   ├── db/                 # LanceDB storage layer
 │   ├── services/
-│   │   ├── embeddings.service.ts  # Embeddings via @xenova/transformers
+│   │   ├── embeddings.service.ts  # Embeddings via @huggingface/transformers
 │   │   └── memory.service.ts      # Core memory operations
 │   └── mcp/
 │       ├── server.ts       # MCP server setup
@@ -127,7 +127,7 @@ All configuration via environment variables, all optional:
   "dependencies": {
     "@lancedb/lancedb": "^0.4.0",
     "@modelcontextprotocol/sdk": "^0.6.0",
-    "@xenova/transformers": "^2.14.0",
+    "@huggingface/transformers": "^3.8.0",
     "apache-arrow": "^14.0.0"
   }
 }

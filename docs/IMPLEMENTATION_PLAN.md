@@ -287,7 +287,7 @@ Config file: `~/.local/share/vector-memory-mcp/config.json`
 #### 1. Project Setup
 
 - [ ] Initialize project structure
-- [ ] Install dependencies: `@modelcontextprotocol/sdk`, `@lancedb/lancedb`, `@xenova/transformers`
+- [ ] Install dependencies: `@modelcontextprotocol/sdk`, `@lancedb/lancedb`, `@huggingface/transformers`
 - [ ] Create basic configuration system
 - [ ] Set up logging infrastructure
 

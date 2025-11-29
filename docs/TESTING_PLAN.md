@@ -14,7 +14,7 @@ This document outlines the comprehensive testing strategy and development workfl
 - **Language:** TypeScript 5.0+ for type safety and modern ecosystem
 - **Runtime:** Bun for fast startup and great DX
 - **Vector Database:** LanceDB for fast, local vector search without heavy dependencies
-- **Embeddings:** @xenova/transformers (local, no Python dependency)
+- **Embeddings:** @huggingface/transformers (local, no Python dependency)
 - **SDK:** Official @modelcontextprotocol/sdk
 
 **Technology Stack:**
