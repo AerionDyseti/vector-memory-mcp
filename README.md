@@ -73,7 +73,13 @@ bun install -g @aeriondyseti/vector-memory-mcp
 {
   "mcpServers": {
     "memory": {
-      "command": "vector-memory-mcp"
+      "type": "stdio",
+      "command": "bunx",
+      "args": [
+        "--bun",
+        "@aeriondyseti/vector-memory-mcp"
+      ],
+      "env": {}
     }
   }
 }
