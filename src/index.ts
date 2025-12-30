@@ -6,6 +6,7 @@ import { MemoryRepository } from "./db/memory.repository.js";
 import { EmbeddingsService } from "./services/embeddings.service.js";
 import { MemoryService } from "./services/memory.service.js";
 import { startServer } from "./mcp/server.js";
+import { startHttpServer } from "./http/server.js";
 
 async function main(): Promise<void> {
   // Check for warmup command
@@ -24,8 +25,23 @@ async function main(): Promise<void> {
   const embeddings = new EmbeddingsService(config.embeddingModel, config.embeddingDimension);
   const memoryService = new MemoryService(repository, embeddings);
 
-  // Start MCP server
-  await startServer(memoryService);
+  // Start HTTP server if transport mode includes it
+  if (config.enableHttp) {
+    await startHttpServer(memoryService, config);
+    console.error(
+      `[vector-memory-mcp] MCP available at http://${config.httpHost}:${config.httpPort}/mcp`
+    );
+  }
+
+  // Start stdio transport unless in HTTP-only mode
+  if (config.transportMode !== "http") {
+    await startServer(memoryService);
+  } else {
+    // In HTTP-only mode, keep the process running
+    console.error("[vector-memory-mcp] Running in HTTP-only mode (no stdio)");
+    // Keep process alive - the HTTP server runs indefinitely
+    await new Promise(() => {});
+  }
 }
 
 main().catch(console.error);
