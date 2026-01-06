@@ -8,8 +8,8 @@ Publish a new version to npm.
 
 Ask the user: **"Publish to dev (dogfood) or release (stable)?"**
 
-- **dev**: Quick publish to `dev` tag for testing. No changelog, no git tag.
-- **release**: Full release to `latest` tag. Changelog, git tag, the works.
+- **dev**: Merge to `dev` branch, publish to `@dev` tag
+- **release**: Merge to `main` branch, publish to `@latest` tag
 
 ---
 
@@ -19,10 +19,19 @@ Ask the user: **"Publish to dev (dogfood) or release (stable)?"**
 
 ```bash
 git status --short
+git branch --show-current
 grep '"version"' package.json
 ```
 
-### D2. Bump Dev Version
+### D2. Merge to dev branch
+
+```bash
+# If not already on dev, merge current branch into dev
+git checkout dev
+git merge --no-ff [current-branch] -m "Merge [branch] for dev release"
+```
+
+### D3. Bump Dev Version
 
 Increment the dev version (e.g., `0.9.0-dev.1` → `0.9.0-dev.2`):
 
@@ -30,23 +39,26 @@ Increment the dev version (e.g., `0.9.0-dev.1` → `0.9.0-dev.2`):
 npm version prerelease --preid=dev --no-git-tag-version
 ```
 
-### D3. Publish
+### D4. Commit and Push
 
 ```bash
+git add package.json
+git commit -m "chore: publish $(grep '"version"' package.json | cut -d'"' -f4) to dev"
+git push origin dev
+```
+
+### D5. Build and Publish
+
+```bash
+bun run build
 bun run test && npm publish --access public --tag dev
 ```
 
-### D4. Commit (optional)
-
-```bash
-git add package.json && git commit -m "chore: publish $(grep '"version"' package.json | cut -d'"' -f4) to dev"
-git push
-```
-
-### D5. Report
+### D6. Report
 
 ```
 Published to dev tag: X.Y.Z-dev.N
+Branch: dev
 Install with: bunx --bun @aeriondyseti/vector-memory-mcp@dev
 ```
 
@@ -57,34 +69,17 @@ Install with: bunx --bun @aeriondyseti/vector-memory-mcp@dev
 ### R1. Pre-flight Checks
 
 ```bash
-# Must be on main
+# Should be on dev branch with tested code
 git branch --show-current
-
-# Must be clean
 git status --short
 
-# Must be up to date
-git fetch origin && git status -sb
+# Check what's being released
+git log main..dev --oneline
 ```
 
-If not on main, not clean, or behind origin: stop and fix first.
+### R2. Determine Version
 
-### R2. Get Current State
-
-```bash
-# Current version
-grep '"version"' package.json
-
-# Last version tag
-git tag --list 'v*' --sort=-version:refname | head -1
-
-# Commits since last tag (or last release version)
-git log $(git tag --list 'v*' --sort=-version:refname | head -1)..HEAD --oneline
-```
-
-### R3. Determine Version Bump
-
-Analyze commit messages using semver:
+Analyze commits since last release using semver:
 
 | Bump | Trigger |
 |------|---------|
@@ -92,20 +87,18 @@ Analyze commit messages using semver:
 | **MINOR** | `feat:` commits |
 | **PATCH** | `fix:`, `docs:`, `refactor:`, `perf:`, `test:`, `chore:` |
 
-Use the highest applicable level.
-
-### R4. Confirm with User
+### R3. Confirm with User
 
 Present:
 - Current version → Proposed version
 - Commits being released
-- Changelog summary by category
+- Changelog summary
 
 Ask: "Release vX.Y.Z? (yes/no)"
 
-### R5. Update CHANGELOG.md
+### R4. Update CHANGELOG.md
 
-Add a new section at the top of CHANGELOG.md:
+Add a new section at the top:
 
 ```markdown
 ## [X.Y.Z] - YYYY-MM-DD
@@ -114,40 +107,44 @@ Add a new section at the top of CHANGELOG.md:
 - [new features]
 
 ### Changed
-- [changes to existing features]
+- [changes]
 
 ### Fixed
 - [bug fixes]
 ```
 
-Update the comparison links at the bottom.
+Update comparison links at bottom.
 
-### R6. Bump Version
+### R5. Bump Version and Commit on dev
 
 ```bash
 npm version X.Y.Z --no-git-tag-version
-```
-
-### R7. Commit, Tag, and Publish
-
-```bash
-# Commit changelog and version bump
 git add CHANGELOG.md package.json
 git commit -m "chore: release vX.Y.Z"
+git push origin dev
+```
 
-# Tag
+### R6. Merge to main
+
+```bash
+git checkout main
+git merge --no-ff dev -m "Release vX.Y.Z"
 git tag vX.Y.Z
+git push origin main --tags
+```
 
-# Run tests and publish
+### R7. Build and Publish
+
+```bash
+bun run build
 bun run test && npm publish --access public
-
-# Push commit and tag
-git push && git push --tags
 ```
 
 ### R8. Report
 
-Confirm:
-- Version published: X.Y.Z
-- npm URL: https://www.npmjs.com/package/@aeriondyseti/vector-memory-mcp
-- Tag pushed: vX.Y.Z
+```
+Published to latest: X.Y.Z
+Branch: main
+Tag: vX.Y.Z
+npm: https://www.npmjs.com/package/@aeriondyseti/vector-memory-mcp
+```
