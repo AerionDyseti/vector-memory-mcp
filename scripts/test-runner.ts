@@ -7,8 +7,32 @@
  */
 
 import { spawn } from "bun";
+import arg from "arg";
 
-const proc = spawn(["bun", "test", "--preload", "./tests/preload.ts"], {
+const args = arg(
+  {
+    "--coverage": Boolean,
+    "--watch": Boolean,
+    "--bail": Boolean,
+    "--timeout": Number,
+    "-c": "--coverage",
+    "-w": "--watch",
+    "-b": "--bail",
+    "-t": "--timeout",
+  },
+  { permissive: true }
+);
+
+const bunArgs = ["bun", "test", "--preload", "./tests/preload.ts"];
+if (args["--coverage"]) bunArgs.push("--coverage");
+if (args["--watch"]) bunArgs.push("--watch");
+if (args["--bail"]) bunArgs.push("--bail");
+if (args["--timeout"]) bunArgs.push("--timeout", String(args["--timeout"]));
+
+// Pass through any remaining args (e.g., file patterns)
+bunArgs.push(...args._);
+
+const proc = spawn(bunArgs, {
   stdout: "pipe",
   stderr: "pipe",
   env: { ...process.env, FORCE_COLOR: "1" },

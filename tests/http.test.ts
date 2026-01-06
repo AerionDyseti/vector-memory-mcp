@@ -205,6 +205,218 @@ describe("HTTP API", () => {
   });
 });
 
+describe("MCP Transport", () => {
+  let memoryService: MemoryService;
+  let app: ReturnType<typeof createHttpApp>;
+  let tmpDir: string;
+
+  beforeAll(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "vector-memory-mcp-transport-test-"));
+    const dbPath = join(tmpDir, "test.lancedb");
+    const testConfig = createTestConfig(dbPath);
+    const db = await connectToDatabase(dbPath);
+    const repository = new MemoryRepository(db);
+    const embeddings = new EmbeddingsService("Xenova/all-MiniLM-L6-v2", 384);
+    memoryService = new MemoryService(repository, embeddings);
+    app = createHttpApp(memoryService, testConfig);
+  });
+
+  afterAll(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  describe("POST /mcp", () => {
+    test("initializes session with initialize request", async () => {
+      const res = await app.request("/mcp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2024-11-05",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1.0" },
+          },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const sessionId = res.headers.get("mcp-session-id");
+      expect(sessionId).toBeDefined();
+
+      const body = await res.json();
+      expect(body.result).toBeDefined();
+      expect(body.result.serverInfo.name).toBe("vector-memory-mcp");
+    });
+
+    test("returns error for non-initialize request without session", async () => {
+      const res = await app.request("/mcp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/list",
+          params: {},
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toBeDefined();
+      expect(body.error.code).toBe(-32000);
+    });
+
+    test("returns error for invalid session ID", async () => {
+      const res = await app.request("/mcp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "mcp-session-id": "invalid-session-id",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/list",
+          params: {},
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toBeDefined();
+    });
+
+    test("reuses existing session with valid session ID", async () => {
+      // First, initialize a session
+      const initRes = await app.request("/mcp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2024-11-05",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1.0" },
+          },
+        }),
+      });
+
+      const sessionId = initRes.headers.get("mcp-session-id")!;
+
+      // Now make another request with the session ID
+      const res = await app.request("/mcp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "mcp-session-id": sessionId,
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 2,
+          method: "tools/list",
+          params: {},
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.result).toBeDefined();
+      expect(body.result.tools).toBeInstanceOf(Array);
+    });
+  });
+
+  describe("GET /mcp", () => {
+    test("returns error without session ID", async () => {
+      const res = await app.request("/mcp", { method: "GET" });
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toBeDefined();
+      expect(body.error.message).toContain("session");
+    });
+
+    test("returns error with invalid session ID", async () => {
+      const res = await app.request("/mcp", {
+        method: "GET",
+        headers: { "mcp-session-id": "invalid-session" },
+      });
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("DELETE /mcp", () => {
+    test("returns error without session ID", async () => {
+      const res = await app.request("/mcp", { method: "DELETE" });
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toBeDefined();
+    });
+
+    test("returns error with invalid session ID", async () => {
+      const res = await app.request("/mcp", {
+        method: "DELETE",
+        headers: { "mcp-session-id": "invalid-session" },
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    test("successfully closes valid session", async () => {
+      // First, initialize a session
+      const initRes = await app.request("/mcp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2024-11-05",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1.0" },
+          },
+        }),
+      });
+
+      const sessionId = initRes.headers.get("mcp-session-id")!;
+
+      // Delete the session
+      const deleteRes = await app.request("/mcp", {
+        method: "DELETE",
+        headers: { "mcp-session-id": sessionId },
+      });
+
+      expect(deleteRes.status).toBe(200);
+      const body = await deleteRes.json();
+      expect(body.success).toBe(true);
+
+      // Verify session is gone - subsequent request should fail
+      const verifyRes = await app.request("/mcp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "mcp-session-id": sessionId,
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 2,
+          method: "tools/list",
+          params: {},
+        }),
+      });
+
+      expect(verifyRes.status).toBe(400);
+    });
+  });
+});
+
 describe("HTTP API Integration", () => {
   let memoryService: MemoryService;
   let app: ReturnType<typeof createHttpApp>;
