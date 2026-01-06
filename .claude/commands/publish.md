@@ -53,17 +53,36 @@ Present:
 
 Ask: "Release vX.Y.Z? (yes/no)"
 
-## 5. Bump Version
+## 5. Update CHANGELOG.md
+
+Add a new section at the top of CHANGELOG.md:
+
+```markdown
+## [X.Y.Z] - YYYY-MM-DD
+
+### Added
+- [new features]
+
+### Changed
+- [changes to existing features]
+
+### Fixed
+- [bug fixes]
+```
+
+Update the comparison links at the bottom.
+
+## 6. Bump Version
 
 ```bash
 npm version [major|minor|patch] --no-git-tag-version
 ```
 
-## 6. Commit, Tag, and Publish
+## 7. Commit, Tag, and Publish
 
 ```bash
-# Commit version bump
-git add package.json
+# Commit changelog and version bump
+git add CHANGELOG.md package.json
 git commit -m "chore: release vX.Y.Z"
 
 # Tag
@@ -76,7 +95,7 @@ bun run test && npm publish --access public
 git push && git push --tags
 ```
 
-## 7. Report
+## 8. Report
 
 Confirm:
 - Version published: X.Y.Z
