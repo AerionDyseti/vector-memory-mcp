@@ -4,13 +4,17 @@ import type { MemoryService } from "../services/memory.service.js";
 import type { Config } from "../config/index.js";
 import { isDeleted } from "../types/memory.js";
 import { createMcpRoutes } from "./mcp-transport.js";
+import type { Memory } from "../types/memory.js";
 
 export interface HttpServerOptions {
   memoryService: MemoryService;
   config: Config;
 }
 
-export function createHttpApp(memoryService: MemoryService): Hono {
+// Track server start time for uptime calculation
+const startedAt = Date.now();
+
+export function createHttpApp(memoryService: MemoryService, config: Config): Hono {
   const app = new Hono();
 
   // Enable CORS for local development
@@ -20,9 +24,19 @@ export function createHttpApp(memoryService: MemoryService): Hono {
   const mcpApp = createMcpRoutes(memoryService);
   app.route("/", mcpApp);
 
-  // Health check endpoint
+  // Health check endpoint with config info
   app.get("/health", (c) => {
-    return c.json({ status: "ok", timestamp: new Date().toISOString() });
+    return c.json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      pid: process.pid,
+      uptime: Math.floor((Date.now() - startedAt) / 1000),
+      config: {
+        dbPath: config.dbPath,
+        embeddingModel: config.embeddingModel,
+        embeddingDimension: config.embeddingDimension,
+      },
+    });
   });
 
   // Search endpoint
@@ -96,6 +110,38 @@ export function createHttpApp(memoryService: MemoryService): Hono {
     }
   });
 
+  // Get latest handoff
+  app.get("/handoff", async (c) => {
+    try {
+      const handoff = await memoryService.getLatestHandoff();
+
+      if (!handoff) {
+        return c.json({ error: "No handoff found" }, 404);
+      }
+
+      // Fetch referenced memories if any
+      const memoryIds = (handoff.metadata.memory_ids as string[] | undefined) ?? [];
+      const referencedMemories: Array<{ id: string; content: string }> = [];
+
+      for (const id of memoryIds) {
+        const memory = await memoryService.get(id);
+        if (memory && !isDeleted(memory)) {
+          referencedMemories.push({ id: memory.id, content: memory.content });
+        }
+      }
+
+      return c.json({
+        content: handoff.content,
+        metadata: handoff.metadata,
+        referencedMemories,
+        updatedAt: handoff.updatedAt.toISOString(),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: message }, 500);
+    }
+  });
+
   // Get single memory
   app.get("/memories/:id", async (c) => {
     try {
@@ -126,7 +172,7 @@ export async function startHttpServer(
   memoryService: MemoryService,
   config: Config
 ): Promise<{ stop: () => void }> {
-  const app = createHttpApp(memoryService);
+  const app = createHttpApp(memoryService, config);
 
   const server = Bun.serve({
     port: config.httpPort,

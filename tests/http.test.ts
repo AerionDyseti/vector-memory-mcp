@@ -7,20 +7,35 @@ import { MemoryRepository } from "../src/db/memory.repository";
 import { EmbeddingsService } from "../src/services/embeddings.service";
 import { MemoryService } from "../src/services/memory.service";
 import { createHttpApp } from "../src/http/server";
+import type { Config } from "../src/config/index";
+
+function createTestConfig(dbPath: string): Config {
+  return {
+    dbPath,
+    embeddingModel: "Xenova/all-MiniLM-L6-v2",
+    embeddingDimension: 384,
+    httpPort: 3271,
+    httpHost: "127.0.0.1",
+    enableHttp: true,
+    transportMode: "stdio",
+  };
+}
 
 describe("HTTP API", () => {
   let memoryService: MemoryService;
   let app: ReturnType<typeof createHttpApp>;
   let tmpDir: string;
+  let testConfig: Config;
 
   beforeAll(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), "vector-memory-http-test-"));
     const dbPath = join(tmpDir, "test.lancedb");
+    testConfig = createTestConfig(dbPath);
     const db = await connectToDatabase(dbPath);
     const repository = new MemoryRepository(db);
     const embeddings = new EmbeddingsService("Xenova/all-MiniLM-L6-v2", 384);
     memoryService = new MemoryService(repository, embeddings);
-    app = createHttpApp(memoryService);
+    app = createHttpApp(memoryService, testConfig);
   });
 
   afterAll(() => {
@@ -198,11 +213,12 @@ describe("HTTP API Integration", () => {
   beforeAll(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), "vector-memory-http-integration-"));
     const dbPath = join(tmpDir, "test.lancedb");
+    const testConfig = createTestConfig(dbPath);
     const db = await connectToDatabase(dbPath);
     const repository = new MemoryRepository(db);
     const embeddings = new EmbeddingsService("Xenova/all-MiniLM-L6-v2", 384);
     memoryService = new MemoryService(repository, embeddings);
-    app = createHttpApp(memoryService);
+    app = createHttpApp(memoryService, testConfig);
   });
 
   afterAll(() => {

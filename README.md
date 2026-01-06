@@ -118,12 +118,13 @@ bun install
 ### Start Using It
 
 That's it! Restart your MCP client and you'll have access to memory tools:
-- `store_memory` - Save one or more memories for later recall (supports batch)
+- `store_memories` - Save memories for later recall (always pass array)
 - `search_memories` - Find relevant memories semantically
-- `get_memory` - Retrieve one or more memories by ID (supports batch)
-- `delete_memory` - Remove a memory
-- `store_context` - Store a handoff-style context snapshot (stored under UUID.ZERO)
-- `get_context` - Retrieve the latest stored context snapshot (UUID.ZERO)
+- `get_memories` - Retrieve memories by ID (always pass array)
+- `update_memories` - Update existing memories in place
+- `delete_memories` - Remove memories (always pass array of IDs)
+- `store_handoff` - Store a handoff-style project snapshot
+- `get_handoff` - Retrieve the latest handoff (includes referenced memories)
 
 ---
 
@@ -135,7 +136,7 @@ Ask your MCP client/agent to remember things for you:
 
 ```
 You: "Remember that we use Drizzle ORM for database access"
-Claude: [calls store_memory tool]
+Claude: [calls store_memories tool]
 ```
 
 Or your MCP client/agent can store memories directly:
@@ -223,7 +224,7 @@ vector-memory-mcp/
 ### 1. Memory Storage
 
 ```
-An MCP client calls store_memory tool
+An MCP client calls store_memories tool
          ↓
 Content → @huggingface/transformers → 384d vector
          ↓
@@ -254,7 +255,7 @@ The server uses environment variables for configuration:
 
 - `VECTOR_MEMORY_DB_PATH` - Custom database path (default: `./.claude/vector-memories.db`)
 
-> Note: if you point multiple projects at the same DB path, `store_context` uses UUID.ZERO and will overwrite the previous context (by design).
+> Note: if you point multiple projects at the same DB path, `store_handoff` uses UUID.ZERO and will overwrite the previous handoff (by design).
 - `VECTOR_MEMORY_MODEL` - Embedding model to use (default: `Xenova/all-MiniLM-L6-v2`)
 
 Example:
@@ -284,7 +285,10 @@ Or in your MCP client config:
 ### Running Tests
 
 ```bash
-# Run all tests
+# Run all tests (recommended - includes model preload)
+bun run test
+
+# Run tests directly (skips 19 embedding tests, faster)
 bun test
 
 # Run with coverage
@@ -293,6 +297,8 @@ bun test --coverage
 # Type checking
 bun run typecheck
 ```
+
+> **Note:** `bun run test` uses a wrapper that preloads the embedding model, running all 98 tests. `bun test` directly is faster but skips embedding-specific tests.
 
 ### Development Mode
 
@@ -410,7 +416,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 ```
 You: "Remember that we decided to use Drizzle ORM for type-safe database access"
 Claude: I'll store that for you.
-  [Calls store_memory tool with content and metadata]
+  [Calls store_memories tool with content and metadata]
   ✓ Memory stored successfully
 ```
 

@@ -24,7 +24,7 @@ export class EmbeddingsService {
       this.initPromise = pipeline(
         "feature-extraction",
         this.modelName,
-        { quantized: true } as any
+        { dtype: "fp32" } as any
       ) as Promise<FeatureExtractionPipeline>;
     }
 

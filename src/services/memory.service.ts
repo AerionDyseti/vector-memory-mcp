@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import type { Memory } from "../types/memory.js";
-import { DELETED_TOMBSTONE, isSuperseded } from "../types/memory.js";
+import { isDeleted } from "../types/memory.js";
 import type { MemoryRepository } from "../db/memory.repository.js";
 import type { EmbeddingsService } from "./embeddings.service.js";
 
@@ -42,33 +42,64 @@ export class MemoryService {
     return await this.repository.markDeleted(id);
   }
 
-  async search(query: string, limit: number = 10): Promise<Memory[]> {
+
+  async update(
+    id: string,
+    updates: {
+      content?: string;
+      embeddingText?: string;
+      metadata?: Record<string, unknown>;
+    }
+  ): Promise<Memory | null> {
+    const existing = await this.repository.findById(id);
+    if (!existing) {
+      return null;
+    }
+
+    const newContent = updates.content ?? existing.content;
+    const newMetadata = updates.metadata ?? existing.metadata;
+
+    // Regenerate embedding if content or embeddingText changed
+    let newEmbedding = existing.embedding;
+    if (updates.content !== undefined || updates.embeddingText !== undefined) {
+      const textToEmbed = updates.embeddingText ?? newContent;
+      newEmbedding = await this.embeddings.embed(textToEmbed);
+    }
+
+    const updatedMemory: Memory = {
+      ...existing,
+      content: newContent,
+      embedding: newEmbedding,
+      metadata: newMetadata,
+      updatedAt: new Date(),
+    };
+
+    await this.repository.upsert(updatedMemory);
+    return updatedMemory;
+  }
+
+  async search(
+    query: string,
+    limit: number = 10,
+    includeDeleted: boolean = false
+  ): Promise<Memory[]> {
     const queryEmbedding = await this.embeddings.embed(query);
     const fetchLimit = limit * 3;
 
     const rows = await this.repository.findSimilar(queryEmbedding, fetchLimit);
 
     const results: Memory[] = [];
-    const seenIds = new Set<string>();
 
     for (const row of rows) {
-      let memory = await this.repository.findById(row.id);
+      const memory = await this.repository.findById(row.id);
 
       if (!memory) {
         continue;
       }
 
-      if (isSuperseded(memory)) {
-        memory = await this.followSupersessionChain(row.id);
-        if (!memory) {
-          continue;
-        }
-      }
-
-      if (seenIds.has(memory.id)) {
+      if (!includeDeleted && isDeleted(memory)) {
         continue;
       }
-      seenIds.add(memory.id);
 
       results.push(memory);
       if (results.length >= limit) {
@@ -82,7 +113,7 @@ export class MemoryService {
   private static readonly UUID_ZERO =
     "00000000-0000-0000-0000-000000000000";
 
-  async storeContext(args: {
+  async storeHandoff(args: {
     project: string;
     branch?: string;
     summary: string;
@@ -127,10 +158,11 @@ ${list(args.memory_ids)}`;
 
     const metadata: Record<string, unknown> = {
       ...(args.metadata ?? {}),
-      type: "context",
+      type: "handoff",
       project: args.project,
       date,
       branch: args.branch ?? "unknown",
+      memory_ids: args.memory_ids ?? [],
     };
 
     const memory: Memory = {
@@ -147,33 +179,7 @@ ${list(args.memory_ids)}`;
     return memory;
   }
 
-  async getLatestContext(): Promise<Memory | null> {
+  async getLatestHandoff(): Promise<Memory | null> {
     return await this.get(MemoryService.UUID_ZERO);
-  }
-
-  private async followSupersessionChain(memoryId: string): Promise<Memory | null> {
-    const visited = new Set<string>();
-    let currentId: string | null = memoryId;
-
-    while (currentId && !visited.has(currentId)) {
-      visited.add(currentId);
-      const memory = await this.repository.findById(currentId);
-
-      if (!memory) {
-        return null;
-      }
-
-      if (memory.supersededBy === null) {
-        return memory;
-      }
-
-      if (memory.supersededBy === DELETED_TOMBSTONE) {
-        return null;
-      }
-
-      currentId = memory.supersededBy;
-    }
-
-    return null;
   }
 }

@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import {
   DELETED_TOMBSTONE,
   isDeleted,
-  isSuperseded,
   memoryToDict,
   type Memory,
 } from "../src/types/memory";
@@ -39,23 +38,6 @@ describe("types/memory", () => {
     test("returns false when supersededBy is another ID", () => {
       const memory = createMemory({ supersededBy: "other-id" });
       expect(isDeleted(memory)).toBe(false);
-    });
-  });
-
-  describe("isSuperseded", () => {
-    test("returns true when supersededBy is set", () => {
-      const memory = createMemory({ supersededBy: "other-id" });
-      expect(isSuperseded(memory)).toBe(true);
-    });
-
-    test("returns true when supersededBy is DELETED", () => {
-      const memory = createMemory({ supersededBy: DELETED_TOMBSTONE });
-      expect(isSuperseded(memory)).toBe(true);
-    });
-
-    test("returns false when supersededBy is null", () => {
-      const memory = createMemory({ supersededBy: null });
-      expect(isSuperseded(memory)).toBe(false);
     });
   });
 
