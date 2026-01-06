@@ -2,10 +2,28 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 export const storeMemoriesTool: Tool = {
   name: "store_memories",
-  description:
-    "Build persistent memory across conversations. Store decisions, solutions, user preferences, " +
-    "patterns, or anything worth remembering. Batch related items in one call. " +
-    "For long content (>1000 chars), provide embedding_text with a searchable summary.",
+  description: `Store memories that persist across conversations. Use after making decisions or learning something worth remembering.
+
+RULES:
+- 1 concept per memory, 1-3 sentences (20-75 words)
+- Self-contained with explicit subjects (no "it", "this", "the project")
+- Include dates/versions when relevant
+- Be concrete, not vague
+
+MEMORY TYPES (use as metadata.type):
+- decision: what was chosen + why ("Chose libSQL over PostgreSQL for vector support and simpler deployment")
+- implementation: what was built + where + patterns used
+- insight: learning + why it matters
+- blocker: problem encountered + resolution
+- next-step: TODO item + suggested approach
+- context: background info + constraints
+
+DON'T STORE: machine-specific paths, local env details, ephemeral states, pleasantries
+
+GOOD: "Aerion chose libSQL over PostgreSQL for Resonance (Dec 2024) because of native vector support and simpler deployment."
+BAD: "Uses SQLite" (no context, no subject, no reasoning)
+
+For long content (>1000 chars), provide embedding_text with a searchable summary.`,
   inputSchema: {
     type: "object",
     properties: {
@@ -61,9 +79,13 @@ export const deleteMemoriesTool: Tool = {
 
 const updateMemoriesTool: Tool = {
   name: "update_memories",
-  description:
-    "Update existing memories in place. Use to correct content, refine embedding text, or replace metadata " +
-    "without changing the memory ID. Prefer over delete+create when updating the same conceptual item.",
+  description: `Update existing memories in place. Prefer over delete+create when updating the same conceptual item.
+
+BEHAVIOR:
+- Fields omitted/null: left untouched
+- Fields provided: completely overwrite existing value (no merge)
+
+Use to correct content, refine embedding text, or replace metadata without changing the memory ID.`,
   inputSchema: {
     type: "object",
     properties: {
@@ -101,12 +123,22 @@ const updateMemoriesTool: Tool = {
 
 export const searchMemoriesTool: Tool = {
   name: "search_memories",
-  description:
-    "Search stored memories semantically. Use PROACTIVELY—don't wait to be asked. " +
-    "Triggers: references to past decisions ('what did we decide', 'as discussed'), " +
-    "questions about prior work, returning to a project, debugging something potentially solved before, " +
-    "or questions about established patterns/preferences. " +
-    "When uncertain, search—missing relevant memories is costlier than an extra query.",
+  description: `Search stored memories semantically. Use PROACTIVELY—don't wait to be asked.
+
+WHEN TO SEARCH:
+- At conversation start / returning to a project
+- Before making decisions (check for prior decisions on same topic)
+- When user references past work ("what did we decide", "as discussed", "remember when")
+- Before suggesting solutions (check if problem was solved before)
+- When debugging (check for prior blockers/resolutions)
+- When uncertain about patterns or preferences
+
+When in doubt, search. Missing relevant context is costlier than an extra query.
+
+QUERY TIPS:
+- Include project name, technical terms, or domain keywords
+- Search for concepts, not exact phrases
+- Try multiple queries if first doesn't return useful results`,
   inputSchema: {
     type: "object",
     properties: {
@@ -149,9 +181,17 @@ export const getMemoriesTool: Tool = {
 
 export const storeHandoffTool: Tool = {
   name: "store_handoff",
-  description:
-    "Capture structured project state for handoff: summary, completed work, blockers, key decisions, next steps. " +
-    "Retrievable via get_handoff.",
+  description: `Save session state for seamless resumption later. Use at end of work sessions or before context switches.
+
+Creates a structured snapshot with:
+- summary: 2-3 sentences on goal and current status
+- completed: what got done (include file paths)
+- in_progress_blocked: work in flight or stuck
+- key_decisions: choices made and WHY (crucial for future context)
+- next_steps: concrete, actionable items
+- memory_ids: link to related memories stored this session
+
+Retrievable via get_handoff. Only one handoff per project—new handoffs overwrite previous.`,
   inputSchema: {
     type: "object",
     properties: {
