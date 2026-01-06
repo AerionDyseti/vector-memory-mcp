@@ -1,8 +1,8 @@
 ---
-description: Analyze commits, bump version, tag and push to trigger npm publish (project)
+description: Analyze commits, bump version, tag, and publish to npm (project)
 ---
 
-Release a new version. Tagging triggers GitHub Actions to publish to npm.
+Release a new version to npm.
 
 ## 1. Pre-flight Checks
 
@@ -53,25 +53,32 @@ Present:
 
 Ask: "Release vX.Y.Z? (yes/no)"
 
-## 5. Bump, Tag, and Push
+## 5. Bump Version
 
 ```bash
-# Bump version in package.json
 npm version [major|minor|patch] --no-git-tag-version
+```
 
-# Commit and tag
+## 6. Commit, Tag, and Publish
+
+```bash
+# Commit version bump
 git add package.json
 git commit -m "chore: release vX.Y.Z"
+
+# Tag
 git tag vX.Y.Z
 
-# Push (triggers GHA publish)
+# Run tests and publish
+bun run test && npm publish --access public
+
+# Push commit and tag
 git push && git push --tags
 ```
 
-## 6. Monitor
+## 7. Report
 
-After push:
-- GitHub Actions will run tests and publish to npm
-- Check: https://github.com/AerionDyseti/vector-memory-mcp/actions
-
-Report the tag pushed and link to the GHA run.
+Confirm:
+- Version published: X.Y.Z
+- npm URL: https://www.npmjs.com/package/@aeriondyseti/vector-memory-mcp
+- Tag pushed: vX.Y.Z

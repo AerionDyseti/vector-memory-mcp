@@ -13,15 +13,20 @@ bun run dev
 
 ### Testing
 ```bash
-# Run all tests
-bun test
+# Run all tests (with model preload - recommended)
+bun run test
 
-# Run tests with coverage
-bun test --coverage
+# Run tests without preload (skips 19 embedding tests, faster)
+bun test
 
 # Run a specific test file
 bun test tests/memory.test.ts
+
+# Run tests with coverage
+bun test --coverage
 ```
+
+**Note:** `bun run test` uses a wrapper that preloads the embedding model, so all 98 tests run. `bun test` directly skips embedding-specific tests if the model isn't warmed up.
 
 ### Type Checking
 ```bash
