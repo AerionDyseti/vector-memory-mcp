@@ -1,75 +1,77 @@
 ---
-description: Analyze commits, bump version, and publish to npm (project)
+description: Analyze commits, bump version, tag and push to trigger npm publish (project)
 ---
 
-Publish a new version to npm based on commits since last release.
+Release a new version. Tagging triggers GitHub Actions to publish to npm.
 
-## 1. Get Current State
+## 1. Pre-flight Checks
+
+```bash
+# Must be on main
+git branch --show-current
+
+# Must be clean
+git status --short
+
+# Must be up to date
+git fetch origin && git status -sb
+```
+
+If not on main, not clean, or behind origin: stop and fix first.
+
+## 2. Get Current State
 
 ```bash
 # Current version
-cat package.json | grep '"version"'
+grep '"version"' package.json
 
-# Find last version tag
+# Last version tag
 git tag --list 'v*' --sort=-version:refname | head -1
 
-# Commits since last tag (or all commits if no tag)
-git log $(git tag --list 'v*' --sort=-version:refname | head -1)..HEAD --oneline 2>/dev/null || git log --oneline
+# Commits since last tag
+git log $(git tag --list 'v*' --sort=-version:refname | head -1)..HEAD --oneline
 ```
 
-## 2. Analyze Commits for Version Bump
+## 3. Determine Version Bump
 
-Review commit messages and determine version bump using semver:
+Analyze commit messages using semver:
 
-**MAJOR** (breaking changes):
-- Commits with `BREAKING CHANGE:` in body
-- Commits with `!` after type (e.g., `feat!:`, `fix!:`)
+| Bump | Trigger |
+|------|---------|
+| **MAJOR** | `BREAKING CHANGE:` in body, or `feat!:`, `fix!:` |
+| **MINOR** | `feat:` commits |
+| **PATCH** | `fix:`, `docs:`, `refactor:`, `perf:`, `test:`, `chore:` |
 
-**MINOR** (new features):
-- `feat:` commits
+Use the highest applicable level.
 
-**PATCH** (fixes, improvements):
-- `fix:` commits
-- `docs:`, `refactor:`, `perf:`, `test:`, `chore:` commits
-
-Use the highest applicable bump level.
-
-## 3. Confirm with User
+## 4. Confirm with User
 
 Present:
-- Current version
-- Proposed new version
-- Summary of changes by category
+- Current version → Proposed version
+- Commits being released
+- Changelog summary by category
 
-Ask: "Publish as vX.Y.Z? (yes/no)"
+Ask: "Release vX.Y.Z? (yes/no)"
 
-## 4. Update Version
+## 5. Bump, Tag, and Push
 
-If confirmed, update `package.json`:
 ```bash
-# Use npm version to bump (also creates git tag)
+# Bump version in package.json
 npm version [major|minor|patch] --no-git-tag-version
-```
 
-## 5. Commit and Tag
-
-```bash
+# Commit and tag
 git add package.json
-git commit -m "chore: bump version to X.Y.Z"
+git commit -m "chore: release vX.Y.Z"
 git tag vX.Y.Z
-```
 
-## 6. Publish
-
-```bash
-bun run publish:npm
-```
-
-## 7. Push
-
-After successful publish:
-```bash
+# Push (triggers GHA publish)
 git push && git push --tags
 ```
 
-Report the published version and npm URL.
+## 6. Monitor
+
+After push:
+- GitHub Actions will run tests and publish to npm
+- Check: https://github.com/AerionDyseti/vector-memory-mcp/actions
+
+Report the tag pushed and link to the GHA run.
