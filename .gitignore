@@ -159,7 +159,6 @@ test_*.db
 node_modules/
 bun.lock
 package-lock.json
-# Claude Code (keep commands/, ignore the rest)
-.claude/*
-!.claude/commands/
+# Claude Code (local config - use integrations/claude-code/ for shared commands)
+.claude/
 .aider*

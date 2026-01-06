@@ -78,7 +78,7 @@ memory_ids:
 - [items]
 
 ---
-⚠️ **Note:** This file was created because vector-memory-mcp was unavailable.
+**Note:** This file was created because vector-memory-mcp was unavailable.
 Individual memories were not stored. Delete this file after MCP is restored.
 ```
 
