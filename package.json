@@ -1,6 +1,6 @@
 {
   "name": "@aeriondyseti/vector-memory-mcp",
-  "version": "0.9.0-dev.3",
+  "version": "0.9.0-alpha.1",
   "description": "A zero-configuration RAG memory server for MCP clients",
   "type": "module",
   "main": "dist/src/index.js",
@@ -35,11 +35,11 @@
     "test:quick": "bun test",
     "test:coverage": "bun test --preload ./tests/preload.ts --coverage",
     "test:preload": "bun run tests/preload.ts",
-    "warmup": "bun run scripts/warmup.ts",
-    "postinstall": "bun run scripts/warmup.ts",
+    "warmup": "node dist/scripts/warmup.js",
+    "postinstall": "node dist/scripts/warmup.js",
     "publish:check": "bun run scripts/publish.ts --dry-run",
     "publish:npm": "bun run scripts/publish.ts",
-    "publish:dev": "npm publish --access public --tag dev",
+    "publish:alpha": "npm publish --access public --tag alpha",
     "prepublishOnly": "bun run build"
   },
   "keywords": [

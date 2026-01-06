@@ -1,5 +1,8 @@
 import arg from "arg";
 import { join } from "path";
+import packageJson from "../../package.json" with { type: "json" };
+
+export const VERSION = packageJson.version;
 
 export type TransportMode = "stdio" | "http" | "both";
 
