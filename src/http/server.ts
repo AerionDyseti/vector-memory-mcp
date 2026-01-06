@@ -1,10 +1,14 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { serve as nodeServe } from "@hono/node-server";
 import type { MemoryService } from "../services/memory.service.js";
 import type { Config } from "../config/index.js";
 import { isDeleted } from "../types/memory.js";
 import { createMcpRoutes } from "./mcp-transport.js";
 import type { Memory } from "../types/memory.js";
+
+// Detect runtime
+const isBun = typeof globalThis.Bun !== "undefined";
 
 export interface HttpServerOptions {
   memoryService: MemoryService;
@@ -174,17 +178,35 @@ export async function startHttpServer(
 ): Promise<{ stop: () => void }> {
   const app = createHttpApp(memoryService, config);
 
-  const server = Bun.serve({
-    port: config.httpPort,
-    hostname: config.httpHost,
-    fetch: app.fetch,
-  });
+  if (isBun) {
+    // Use Bun's native server
+    const server = Bun.serve({
+      port: config.httpPort,
+      hostname: config.httpHost,
+      fetch: app.fetch,
+    });
 
-  console.error(
-    `[vector-memory-mcp] HTTP server listening on http://${config.httpHost}:${config.httpPort}`
-  );
+    console.error(
+      `[vector-memory-mcp] HTTP server listening on http://${config.httpHost}:${config.httpPort}`
+    );
 
-  return {
-    stop: () => server.stop(),
-  };
+    return {
+      stop: () => server.stop(),
+    };
+  } else {
+    // Use Node.js server via @hono/node-server
+    const server = nodeServe({
+      fetch: app.fetch,
+      port: config.httpPort,
+      hostname: config.httpHost,
+    });
+
+    console.error(
+      `[vector-memory-mcp] HTTP server listening on http://${config.httpHost}:${config.httpPort}`
+    );
+
+    return {
+      stop: () => server.close(),
+    };
+  }
 }

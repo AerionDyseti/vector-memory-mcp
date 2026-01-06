@@ -23,13 +23,19 @@ A local-first MCP server that provides vector-based memory storage. Uses local e
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) 1.0+
+- [Bun](https://bun.sh/) 1.0+ (recommended) or [Node.js](https://nodejs.org/) 20+
 - An MCP-compatible client (Claude Code, Claude Desktop, etc.)
 
 ### Install
 
+**With Bun (recommended):**
 ```bash
 bun install -g @aeriondyseti/vector-memory-mcp
+```
+
+**With npm/Node.js:**
+```bash
+npm install -g @aeriondyseti/vector-memory-mcp
 ```
 
 > First install downloads ML models (~90MB). This may take a minute.
@@ -38,6 +44,7 @@ bun install -g @aeriondyseti/vector-memory-mcp
 
 Add to your MCP client config (e.g., `~/.claude/settings.json`):
 
+**With Bun:**
 ```json
 {
   "mcpServers": {
@@ -45,6 +52,19 @@ Add to your MCP client config (e.g., `~/.claude/settings.json`):
       "type": "stdio",
       "command": "bunx",
       "args": ["--bun", "@aeriondyseti/vector-memory-mcp"]
+    }
+  }
+}
+```
+
+**With Node.js:**
+```json
+{
+  "mcpServers": {
+    "vector-memory": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@aeriondyseti/vector-memory-mcp"]
     }
   }
 }

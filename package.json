@@ -3,12 +3,12 @@
   "version": "0.9.0-dev.2",
   "description": "A zero-configuration RAG memory server for MCP clients",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/src/index.js",
   "bin": {
-    "vector-memory-mcp": "src/index.ts"
+    "vector-memory-mcp": "dist/src/index.js"
   },
   "files": [
-    "src",
+    "dist",
     "scripts",
     "hooks",
     "README.md",
@@ -26,7 +26,8 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun --watch run src/index.ts",
-    "build": "bun run typecheck",
+    "build": "tsc",
+    "prebuild": "rm -rf dist",
     "typecheck": "bunx tsc --noEmit",
     "test": "bun run scripts/test-runner.ts",
     "test:raw": "bun test --preload ./tests/preload.ts",
@@ -37,7 +38,8 @@
     "postinstall": "bun run scripts/warmup.ts",
     "publish:check": "bun run scripts/publish.ts --dry-run",
     "publish:npm": "bun run scripts/publish.ts",
-    "publish:dev": "npm publish --access public --tag dev"
+    "publish:dev": "npm publish --access public --tag dev",
+    "prepublishOnly": "bun run build"
   },
   "keywords": [
     "mcp",
@@ -48,6 +50,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@hono/node-server": "^1.19.7",
     "@huggingface/transformers": "^3.8.0",
     "@lancedb/lancedb": "^0.22.3",
     "@modelcontextprotocol/sdk": "^1.0.0",
