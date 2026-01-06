@@ -24,8 +24,9 @@
   },
   "homepage": "https://github.com/AerionDyseti/vector-memory-mcp#readme",
   "scripts": {
-    "start": "bun run src/index.ts",
-    "dev": "bun --watch run src/index.ts",
+    "start": "node dist/src/index.js",
+    "dev": "bun run build && node dist/src/index.js",
+    "dev:watch": "bun run build && bun --watch run src/index.ts",
     "build": "tsc",
     "prebuild": "rm -rf dist",
     "typecheck": "bunx tsc --noEmit",
