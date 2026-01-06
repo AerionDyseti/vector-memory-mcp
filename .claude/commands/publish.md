@@ -1,10 +1,60 @@
 ---
-description: Analyze commits, bump version, tag, and publish to npm (project)
+description: Publish to npm - dev (dogfood) or release (stable) (project)
 ---
 
-Release a new version to npm.
+Publish a new version to npm.
 
-## 1. Pre-flight Checks
+## 1. Ask: Dev or Release?
+
+Ask the user: **"Publish to dev (dogfood) or release (stable)?"**
+
+- **dev**: Quick publish to `dev` tag for testing. No changelog, no git tag.
+- **release**: Full release to `latest` tag. Changelog, git tag, the works.
+
+---
+
+## Dev Publish Flow
+
+### D1. Pre-flight
+
+```bash
+git status --short
+grep '"version"' package.json
+```
+
+### D2. Bump Dev Version
+
+Increment the dev version (e.g., `0.9.0-dev.1` → `0.9.0-dev.2`):
+
+```bash
+npm version prerelease --preid=dev --no-git-tag-version
+```
+
+### D3. Publish
+
+```bash
+bun run test && npm publish --access public --tag dev
+```
+
+### D4. Commit (optional)
+
+```bash
+git add package.json && git commit -m "chore: publish $(grep '"version"' package.json | cut -d'"' -f4) to dev"
+git push
+```
+
+### D5. Report
+
+```
+Published to dev tag: X.Y.Z-dev.N
+Install with: bunx --bun @aeriondyseti/vector-memory-mcp@dev
+```
+
+---
+
+## Release Publish Flow
+
+### R1. Pre-flight Checks
 
 ```bash
 # Must be on main
@@ -19,7 +69,7 @@ git fetch origin && git status -sb
 
 If not on main, not clean, or behind origin: stop and fix first.
 
-## 2. Get Current State
+### R2. Get Current State
 
 ```bash
 # Current version
@@ -28,11 +78,11 @@ grep '"version"' package.json
 # Last version tag
 git tag --list 'v*' --sort=-version:refname | head -1
 
-# Commits since last tag
+# Commits since last tag (or last release version)
 git log $(git tag --list 'v*' --sort=-version:refname | head -1)..HEAD --oneline
 ```
 
-## 3. Determine Version Bump
+### R3. Determine Version Bump
 
 Analyze commit messages using semver:
 
@@ -44,7 +94,7 @@ Analyze commit messages using semver:
 
 Use the highest applicable level.
 
-## 4. Confirm with User
+### R4. Confirm with User
 
 Present:
 - Current version → Proposed version
@@ -53,7 +103,7 @@ Present:
 
 Ask: "Release vX.Y.Z? (yes/no)"
 
-## 5. Update CHANGELOG.md
+### R5. Update CHANGELOG.md
 
 Add a new section at the top of CHANGELOG.md:
 
@@ -72,13 +122,13 @@ Add a new section at the top of CHANGELOG.md:
 
 Update the comparison links at the bottom.
 
-## 6. Bump Version
+### R6. Bump Version
 
 ```bash
-npm version [major|minor|patch] --no-git-tag-version
+npm version X.Y.Z --no-git-tag-version
 ```
 
-## 7. Commit, Tag, and Publish
+### R7. Commit, Tag, and Publish
 
 ```bash
 # Commit changelog and version bump
@@ -95,7 +145,7 @@ bun run test && npm publish --access public
 git push && git push --tags
 ```
 
-## 8. Report
+### R8. Report
 
 Confirm:
 - Version published: X.Y.Z
