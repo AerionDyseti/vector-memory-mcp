@@ -79,6 +79,7 @@ uv.lock
 *.db-shm
 *.db-wal
 .memory/
+.vector-memory/
 !tests/fixtures/**/.memory/
 !.memory/.gitkeep
 
@@ -158,5 +159,7 @@ test_*.db
 node_modules/
 bun.lock
 package-lock.json
-.claude/
+# Claude Code (keep commands/, ignore the rest)
+.claude/*
+!.claude/commands/
 .aider*

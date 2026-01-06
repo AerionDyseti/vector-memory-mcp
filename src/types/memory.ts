@@ -19,10 +19,6 @@ export function isDeleted(memory: Memory): boolean {
   return memory.supersededBy === DELETED_TOMBSTONE;
 }
 
-export function isSuperseded(memory: Memory): boolean {
-  return memory.supersededBy !== null;
-}
-
 export function memoryToDict(memory: Memory): Record<string, unknown> {
   return {
     id: memory.id,

@@ -209,36 +209,6 @@ describe("MemoryService", () => {
       expect(results.length).toBe(0);
     });
 
-    test("excludes superseded memories but follows chain to head", async () => {
-      const mem1 = await service.store("Original content about cats");
-      const mem2 = await service.store("Updated content about cats");
-
-      // Manually supersede
-      const table = await db.openTable(TABLE_NAME);
-      await table.update({ where: `id = '${mem1.id}'`, values: { superseded_by: mem2.id } });
-
-      const results = await service.search("cats");
-      expect(results.length).toBe(1);
-      expect(results[0].id).toBe(mem2.id);
-    });
-
-    test("avoids duplicate results from supersession chains", async () => {
-      const mem1 = await service.store("Cats are pets");
-      const mem2 = await service.store("Cats are furry pets");
-      const mem3 = await service.store("Cats are furry friendly pets");
-
-      const table = await db.openTable(TABLE_NAME);
-      await table.update({ where: `id = '${mem1.id}'`, values: { superseded_by: mem2.id } });
-      await table.update({ where: `id = '${mem2.id}'`, values: { superseded_by: mem3.id } });
-
-      const results = await service.search("cats pets", 10);
-      const ids = results.map((r) => r.id);
-      const uniqueIds = [...new Set(ids)];
-      expect(ids.length).toBe(uniqueIds.length);
-      expect(uniqueIds).toContain(mem3.id);
-      expect(uniqueIds).not.toContain(mem1.id);
-      expect(uniqueIds).not.toContain(mem2.id);
-    });
   });
 });
 

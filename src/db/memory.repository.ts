@@ -33,6 +33,27 @@ export class MemoryRepository {
     ]);
   }
 
+  async upsert(memory: Memory): Promise<void> {
+    const table = await this.getTable();
+    const existing = await table.query().where(`id = '${memory.id}'`).limit(1).toArray();
+
+    if (existing.length === 0) {
+      return await this.insert(memory);
+    }
+
+    await table.update({
+      where: `id = '${memory.id}'`,
+      values: {
+        vector: memory.embedding,
+        content: memory.content,
+        metadata: JSON.stringify(memory.metadata),
+        created_at: memory.createdAt.getTime(),
+        updated_at: memory.updatedAt.getTime(),
+        superseded_by: memory.supersededBy,
+      },
+    });
+  }
+
   async findById(id: string): Promise<Memory | null> {
     const table = await this.getTable();
     const results = await table.query().where(`id = '${id}'`).limit(1).toArray();

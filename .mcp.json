@@ -2,14 +2,11 @@
   "mcpServers": {
     "vector-memory-project": {
       "type": "stdio",
-      "command": "bunx",
+      "command": "bun",
       "args": [
-        "--bun",
-        "@aeriondyseti/vector-memory-mcp"
-      ],
-      "env": {
-        "VECTOR_MEMORY_DB_PATH": "./.agents/vector-memories.db"
-      }
+        "run",
+        "/home/aerion/dev/vector-memory-mcp/src/index.ts"
+      ]
     },
     "context7": {
       "type": "stdio",
@@ -27,6 +24,8 @@
         "git+https://github.com/oraios/serena",
         "serena",
         "start-mcp-server",
+        "--mode",
+        "no-memories",
         "--context",
         "ide-assistant",
         "--project",

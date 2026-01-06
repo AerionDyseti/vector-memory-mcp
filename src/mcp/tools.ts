@@ -1,109 +1,214 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
-export const storeMemoryTool: Tool = {
-  name: "store_memory",
+export const storeMemoriesTool: Tool = {
+  name: "store_memories",
   description:
-    "Store a new memory for later recall. " +
-    "PROACTIVELY store memories when: " +
-    "(1) Important decisions are made (technical choices, architecture decisions, tradeoffs); " +
-    "(2) Problems are solved (bugs fixed, errors resolved - include the solution); " +
-    "(3) User preferences or conventions are established; " +
-    "(4) Project-specific patterns or configurations are discussed; " +
-    "(5) Key information would be valuable in future sessions. " +
-    "IMPORTANT: If the content exceeds 1000 characters, you MUST provide an embedding_text " +
-    "parameter with a concise summary (under 1000 characters) that captures the key semantic " +
-    "meaning for search purposes. The full content will still be stored and returned in search results.",
+    "Build persistent memory across conversations. Store decisions, solutions, user preferences, " +
+    "patterns, or anything worth remembering. Batch related items in one call. " +
+    "For long content (>1000 chars), provide embedding_text with a searchable summary.",
   inputSchema: {
     type: "object",
     properties: {
-      content: {
-        type: "string",
-        description:
-          "The text content to store. Write in a way that will be useful when retrieved later - " +
-          "include context, reasoning, and outcomes, not just bare facts.",
-      },
-      embedding_text: {
-        type: "string",
-        description:
-          "A concise summary (under 1000 characters) used for generating the search embedding. " +
-          "REQUIRED when content exceeds 1000 characters. Should capture the key topics and terms " +
-          "someone might search for to find this memory.",
-      },
-      metadata: {
-        type: "object",
-        description:
-          "Optional key-value metadata. Recommended keys: 'project' (project name), 'type' (decision/solution/preference/pattern), 'tags' (array of keywords).",
-        additionalProperties: true,
+      memories: {
+        type: "array",
+        description: "Memories to store.",
+        items: {
+          type: "object",
+          properties: {
+            content: {
+              type: "string",
+              description: "The content to store.",
+            },
+            embedding_text: {
+              type: "string",
+              description:
+                "Summary for search embedding (required if content >1000 chars).",
+            },
+            metadata: {
+              type: "object",
+              description: "Optional key-value metadata.",
+              additionalProperties: true,
+            },
+          },
+          required: ["content"],
+        },
       },
     },
-    required: ["content"],
+    required: ["memories"],
   },
-};
+};;
 
-export const deleteMemoryTool: Tool = {
-  name: "delete_memory",
+export const deleteMemoriesTool: Tool = {
+  name: "delete_memories",
   description:
-    "Delete a memory by its ID. The memory will be soft-deleted and won't appear in search results.",
+    "Remove memories that are no longer needed—outdated info, superseded decisions, or incorrect content. " +
+    "Deleted memories can be recovered via search_memories with include_deleted: true.",
   inputSchema: {
     type: "object",
     properties: {
-      id: {
-        type: "string",
-        description: "The ID of the memory to delete",
+      ids: {
+        type: "array",
+        description: "IDs of memories to delete.",
+        items: {
+          type: "string",
+        },
       },
     },
-    required: ["id"],
+    required: ["ids"],
+  },
+};;
+
+
+const updateMemoriesTool: Tool = {
+  name: "update_memories",
+  description:
+    "Update existing memories in place. Use to correct content, refine embedding text, or replace metadata " +
+    "without changing the memory ID. Prefer over delete+create when updating the same conceptual item.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      updates: {
+        type: "array",
+        description: "Updates to apply. Each must include id and at least one field to change.",
+        items: {
+          type: "object",
+          properties: {
+            id: {
+              type: "string",
+              description: "ID of memory to update.",
+            },
+            content: {
+              type: "string",
+              description: "New content (triggers embedding regeneration).",
+            },
+            embedding_text: {
+              type: "string",
+              description: "New embedding summary (triggers embedding regeneration).",
+            },
+            metadata: {
+              type: "object",
+              description: "New metadata (replaces existing entirely).",
+              additionalProperties: true,
+            },
+          },
+          required: ["id"],
+        },
+      },
+    },
+    required: ["updates"],
   },
 };
 
 export const searchMemoriesTool: Tool = {
   name: "search_memories",
   description:
-    "Search for memories using semantic similarity. Returns the most relevant memories for the given query. " +
-    "IMPORTANT: Use this tool PROACTIVELY without being asked when you detect: " +
-    "(1) References to past decisions or discussions ('what did we decide', 'as we discussed', 'previously'); " +
-    "(2) Questions about prior work ('how did we', 'similar to before', 'like last time'); " +
-    "(3) Project continuations or returning to earlier topics; " +
-    "(4) Debugging issues that may have been solved before; " +
-    "(5) Questions about established patterns, conventions, or preferences. " +
-    "When in doubt, search - it's better to check for relevant context than to miss important prior decisions.",
+    "Search stored memories semantically. Use PROACTIVELY—don't wait to be asked. " +
+    "Triggers: references to past decisions ('what did we decide', 'as discussed'), " +
+    "questions about prior work, returning to a project, debugging something potentially solved before, " +
+    "or questions about established patterns/preferences. " +
+    "When uncertain, search—missing relevant memories is costlier than an extra query.",
   inputSchema: {
     type: "object",
     properties: {
       query: {
         type: "string",
         description:
-          "The search query to find relevant memories. Use natural language describing what context you need. " +
-          "Include relevant keywords, project names, or technical terms for better results.",
+          "Natural language search query. Include relevant keywords, project names, or technical terms.",
       },
       limit: {
         type: "integer",
-        description: "Maximum number of results to return (default: 10)",
+        description: "Maximum results to return (default: 10).",
         default: 10,
+      },
+      include_deleted: {
+        type: "boolean",
+        description: "Include soft-deleted memories in results (default: false). Useful for recovering prior information.",
+        default: false,
       },
     },
     required: ["query"],
   },
 };
 
-export const getMemoryTool: Tool = {
-  name: "get_memory",
-  description: "Retrieve a specific memory by its ID.",
+export const getMemoriesTool: Tool = {
+  name: "get_memories",
+  description:
+    "Retrieve full memory details by ID. Use when you have specific IDs from search results or prior references—otherwise use search_memories.",
   inputSchema: {
     type: "object",
     properties: {
-      id: {
-        type: "string",
-        description: "The ID of the memory to retrieve",
+      ids: {
+        type: "array",
+        description: "Memory IDs to retrieve.",
+        items: { type: "string" },
       },
     },
-    required: ["id"],
+    required: ["ids"],
+  },
+};;
+
+export const storeHandoffTool: Tool = {
+  name: "store_handoff",
+  description:
+    "Capture structured project state for handoff: summary, completed work, blockers, key decisions, next steps. " +
+    "Retrievable via get_handoff.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      project: { type: "string", description: "Project name." },
+      branch: { type: "string", description: "Branch name (optional)." },
+      summary: { type: "string", description: "2-3 sentences: primary goal, current status." },
+      completed: {
+        type: "array",
+        items: { type: "string" },
+        description: "Completed items (include file paths where relevant).",
+      },
+      in_progress_blocked: {
+        type: "array",
+        items: { type: "string" },
+        description: "In progress or blocked items.",
+      },
+      key_decisions: {
+        type: "array",
+        items: { type: "string" },
+        description: "Decisions made and why.",
+      },
+      next_steps: {
+        type: "array",
+        items: { type: "string" },
+        description: "Concrete next steps.",
+      },
+      memory_ids: {
+        type: "array",
+        items: { type: "string" },
+        description: "Memory IDs referenced by this handoff.",
+      },
+      metadata: {
+        type: "object",
+        description: "Additional metadata.",
+        additionalProperties: true,
+      },
+    },
+    required: ["project", "summary"],
+  },
+};
+
+export const getHandoffTool: Tool = {
+  name: "get_handoff",
+  description:
+    "Load the current project handoff snapshot. Call at conversation start or when resuming a project.",
+  inputSchema: {
+    type: "object",
+    properties: {},
   },
 };
 
 export const tools: Tool[] = [
-  storeMemoryTool,
-  deleteMemoryTool,
+  storeMemoriesTool,
+  updateMemoriesTool,
+  deleteMemoriesTool,
   searchMemoriesTool,
-  getMemoryTool,
+  getMemoriesTool,
+  storeHandoffTool,
+  getHandoffTool,
 ];

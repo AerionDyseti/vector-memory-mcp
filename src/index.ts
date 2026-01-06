@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { config } from "./config/index.js";
+import { loadConfig, parseCliArgs } from "./config/index.js";
 import { connectToDatabase } from "./db/connection.js";
 import { MemoryRepository } from "./db/memory.repository.js";
 import { EmbeddingsService } from "./services/embeddings.service.js";
@@ -9,13 +9,18 @@ import { startServer } from "./mcp/server.js";
 import { startHttpServer } from "./http/server.js";
 
 async function main(): Promise<void> {
-  // Check for warmup command
   const args = process.argv.slice(2);
+
+  // Check for warmup command
   if (args[0] === "warmup") {
     const { warmup } = await import("../scripts/warmup.js");
     await warmup();
     return;
   }
+
+  // Parse CLI args and load config
+  const overrides = parseCliArgs(args);
+  const config = loadConfig(overrides);
 
   // Initialize database
   const db = await connectToDatabase(config.dbPath);
@@ -25,9 +30,27 @@ async function main(): Promise<void> {
   const embeddings = new EmbeddingsService(config.embeddingModel, config.embeddingDimension);
   const memoryService = new MemoryService(repository, embeddings);
 
+  // Track cleanup functions
+  let httpStop: (() => void) | null = null;
+
+  // Graceful shutdown handler
+  const shutdown = () => {
+    console.error("[vector-memory-mcp] Shutting down...");
+    if (httpStop) httpStop();
+    db.close();
+    process.exit(0);
+  };
+
+  // Handle signals and stdin close (parent process exit)
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
+  process.stdin.on("close", shutdown);
+  process.stdin.on("end", shutdown);
+
   // Start HTTP server if transport mode includes it
   if (config.enableHttp) {
-    await startHttpServer(memoryService, config);
+    const http = await startHttpServer(memoryService, config);
+    httpStop = http.stop;
     console.error(
       `[vector-memory-mcp] MCP available at http://${config.httpHost}:${config.httpPort}/mcp`
     );

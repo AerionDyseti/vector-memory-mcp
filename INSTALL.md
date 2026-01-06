@@ -2,7 +2,7 @@
 
 ## Quick Local Setup
 
-To test the MCP memory server in Claude Code:
+To test the MCP memory server in an MCP-compatible client:
 
 ### 1. Install dependencies
 ```bash
@@ -10,7 +10,7 @@ cd /home/aerion/dev/vector-memory-mcp
 bun install
 ```
 
-### 2. Configure Claude Code
+### 2. Configure your MCP client
 
 Edit `~/.claude/config.json` and add:
 
@@ -27,25 +27,25 @@ Edit `~/.claude/config.json` and add:
 
 > **Note:** This server requires running with Bun.
 
-### 3. Restart Claude Code
+### 3. Restart your client
 
-Restart your Claude Code session to load the new MCP server.
+Restart your MCP client/session to load the new MCP server.
 
 ### 4. Test the Memory Tools
 
-Try these commands in Claude Code:
+Try these commands in your client:
 
 ```
 You: "Remember that we use TypeScript for this project"
-[Claude should call the store_memory tool]
+[Your client/agent should call the store_memory tool]
 
 You: "What language are we using?"
-[Claude should call search_memories and find the answer]
+[Your client/agent should call search_memories and find the answer]
 ```
 
 ## Available Tools
 
-Once installed, Claude Code will have access to these tools:
+Once installed, your client will have access to these tools:
 
 - `store_memory` - Store a new memory with optional metadata
 - `search_memories` - Search for memories using semantic similarity
@@ -54,9 +54,9 @@ Once installed, Claude Code will have access to these tools:
 
 ## Database Location
 
-Memories are stored in:
+Memories are stored in (by default):
 ```
-~/.local/share/vector-memory-mcp/memories.db
+./.claude/vector-memories.db
 ```
 
 You can inspect the database using LanceDB tools if needed.
@@ -71,9 +71,9 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 
 You should see a JSON response with server info.
 
-### Check Claude Code logs
+### Check client logs
 
-If the server isn't loading, check the Claude Code logs for error messages.
+If the server isn't loading, check your client logs for error messages.
 
 ### Verify Bun is installed
 ```bash

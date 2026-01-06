@@ -31,3 +31,4 @@ export const memorySchema = new Schema([
   ),
   new Field("superseded_by", new Utf8(), true), // Nullable
 ]);
+

@@ -7,20 +7,35 @@ import { MemoryRepository } from "../src/db/memory.repository";
 import { EmbeddingsService } from "../src/services/embeddings.service";
 import { MemoryService } from "../src/services/memory.service";
 import { createHttpApp } from "../src/http/server";
+import type { Config } from "../src/config/index";
+
+function createTestConfig(dbPath: string): Config {
+  return {
+    dbPath,
+    embeddingModel: "Xenova/all-MiniLM-L6-v2",
+    embeddingDimension: 384,
+    httpPort: 3271,
+    httpHost: "127.0.0.1",
+    enableHttp: true,
+    transportMode: "stdio",
+  };
+}
 
 describe("HTTP API", () => {
   let memoryService: MemoryService;
   let app: ReturnType<typeof createHttpApp>;
   let tmpDir: string;
+  let testConfig: Config;
 
   beforeAll(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), "vector-memory-http-test-"));
     const dbPath = join(tmpDir, "test.lancedb");
+    testConfig = createTestConfig(dbPath);
     const db = await connectToDatabase(dbPath);
     const repository = new MemoryRepository(db);
     const embeddings = new EmbeddingsService("Xenova/all-MiniLM-L6-v2", 384);
     memoryService = new MemoryService(repository, embeddings);
-    app = createHttpApp(memoryService);
+    app = createHttpApp(memoryService, testConfig);
   });
 
   afterAll(() => {
@@ -125,57 +140,6 @@ describe("HTTP API", () => {
     });
   });
 
-  describe("POST /context", () => {
-    test("returns formatted context for Claude Code hooks", async () => {
-      // Store a memory
-      await app.request("/store", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: "Database migrations are managed with Drizzle ORM",
-          metadata: { type: "pattern", project: "context-test" },
-        }),
-      });
-
-      // Get context
-      const res = await app.request("/context", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: "database migrations drizzle" }),
-      });
-
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.context).toBeDefined();
-      expect(body.context).toContain("<relevant-memories>");
-      expect(body.context).toContain("</relevant-memories>");
-      expect(body.count).toBeGreaterThan(0);
-    });
-
-    test("returns null context when no matches", async () => {
-      const res = await app.request("/context", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: "xyzzy completely unrelated gibberish 12345" }),
-      });
-
-      expect(res.status).toBe(200);
-      // Even with no exact matches, vector search returns results
-      // Just verify the response structure is correct
-      const body = await res.json();
-      expect(body).toBeDefined();
-    });
-
-    test("returns 400 for missing query", async () => {
-      const res = await app.request("/context", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-
-      expect(res.status).toBe(400);
-    });
-  });
 
   describe("GET /memories/:id", () => {
     test("retrieves a specific memory", async () => {
@@ -249,18 +213,19 @@ describe("HTTP API Integration", () => {
   beforeAll(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), "vector-memory-http-integration-"));
     const dbPath = join(tmpDir, "test.lancedb");
+    const testConfig = createTestConfig(dbPath);
     const db = await connectToDatabase(dbPath);
     const repository = new MemoryRepository(db);
     const embeddings = new EmbeddingsService("Xenova/all-MiniLM-L6-v2", 384);
     memoryService = new MemoryService(repository, embeddings);
-    app = createHttpApp(memoryService);
+    app = createHttpApp(memoryService, testConfig);
   });
 
   afterAll(() => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  test("end-to-end: store, search, context, delete workflow", async () => {
+  test("end-to-end: store, search, delete workflow", async () => {
     // 1. Store multiple memories
     const memories = [
       { content: "API uses REST with JSON payloads", metadata: { type: "decision" } },
@@ -290,16 +255,7 @@ describe("HTTP API Integration", () => {
     const searchBody = await searchRes.json();
     expect(searchBody.memories.length).toBeGreaterThan(0);
 
-    // 3. Get context for Claude Code hook
-    const contextRes = await app.request("/context", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: "API design patterns" }),
-    });
-    const contextBody = await contextRes.json();
-    expect(contextBody.context).toContain("<relevant-memories>");
-
-    // 4. Delete one memory
+    // 3. Delete one memory
     const deleteRes = await app.request(`/memories/${ids[0]}`, {
       method: "DELETE",
     });

@@ -1,7 +1,7 @@
 /**
  * MCP HTTP Transport Handler
  *
- * Provides StreamableHTTP transport for MCP over HTTP, enabling Claude Desktop
+ * Provides StreamableHTTP transport for MCP over HTTP.
  * and other HTTP-based MCP clients to connect to the memory server.
  *
  * This implementation handles the MCP protocol directly using Hono's streaming
