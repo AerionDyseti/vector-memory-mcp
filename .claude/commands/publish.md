@@ -1,15 +1,24 @@
 ---
-description: Publish to npm - dev (dogfood) or release (stable) (project)
+description: Publish to npm - dev (dogfood) or release (stable) (project) (project)
 ---
 
 Publish a new version to npm.
 
-## 1. Ask: Dev or Release?
+**Usage:** `/publish <mode> [version]`
+- `/publish dev` - Increment dev.X counter, publish to @dev tag
+- `/publish release` - Analyze commits, suggest version, publish to @latest tag
+- `/publish release 0.10.1` - Explicit version, publish to @latest tag
 
-Ask the user: **"Publish to dev (dogfood) or release (stable)?"**
+**Argument:** $ARGUMENTS
 
-- **dev**: Merge to `dev` branch, publish to `@dev` tag
-- **release**: Merge to `main` branch, publish to `@latest` tag
+---
+
+## Parse Arguments
+
+Extract mode and optional version from `$ARGUMENTS`:
+- If empty or unclear, ask: **"Publish to dev or release?"**
+- If `dev` → Dev Publish Flow
+- If `release` or `release X.Y.Z` → Release Publish Flow
 
 ---
 
@@ -23,7 +32,7 @@ git branch --show-current
 grep '"version"' package.json
 ```
 
-### D2. Merge to dev branch
+### D2. Merge to dev branch (if needed)
 
 ```bash
 # If not already on dev, merge current branch into dev
@@ -79,13 +88,23 @@ git log main..dev --oneline
 
 ### R2. Determine Version
 
-Analyze commits since last release using semver:
+**If version provided in arguments:** Use that version.
+
+**If no version provided:** Analyze commits since last release using semver:
 
 | Bump | Trigger |
 |------|---------|
 | **MAJOR** | `BREAKING CHANGE:` in body, or `feat!:`, `fix!:` |
 | **MINOR** | `feat:` commits |
 | **PATCH** | `fix:`, `docs:`, `refactor:`, `perf:`, `test:`, `chore:` |
+
+```bash
+# Get last release version
+git describe --tags --abbrev=0 main 2>/dev/null || echo "v0.0.0"
+
+# Get commits since last release
+git log main..dev --oneline
+```
 
 ### R3. Confirm with User
 
@@ -124,7 +143,7 @@ git commit -m "chore: release vX.Y.Z"
 git push origin dev
 ```
 
-### R6. Merge to main
+### R6. Merge to main and Tag
 
 ```bash
 git checkout main
@@ -133,18 +152,35 @@ git tag vX.Y.Z
 git push origin main --tags
 ```
 
-### R7. Build and Publish
+### R7. Build and Publish to @latest
 
 ```bash
 bun run build
 bun run test && npm publish --access public
 ```
 
-### R8. Report
+### R8. Reset dev to new baseline
+
+After releasing, reset dev branch to track the new baseline:
+
+```bash
+git checkout dev
+git merge main  # Fast-forward to release commit
+
+# Reset to X.Y.Z-dev.0 (same version, dev.0 suffix)
+npm version X.Y.Z-dev.0 --no-git-tag-version
+git add package.json
+git commit -m "chore: reset dev to X.Y.Z-dev.0"
+git push origin dev
+```
+
+### R9. Report
 
 ```
 Published to latest: X.Y.Z
 Branch: main
 Tag: vX.Y.Z
 npm: https://www.npmjs.com/package/@aeriondyseti/vector-memory-mcp
+
+Dev branch reset to: X.Y.Z-dev.0
 ```
