@@ -2,10 +2,10 @@
   "mcpServers": {
     "vector-memory-project": {
       "type": "stdio",
-      "command": "bun",
+      "command": "bunx",
       "args": [
-        "run",
-        "/home/aerion/dev/vector-memory-mcp/src/index.ts"
+        "--bun",
+        "@aeriondyseti/vector-memory-mcp@dev"
       ]
     },
     "context7": {
