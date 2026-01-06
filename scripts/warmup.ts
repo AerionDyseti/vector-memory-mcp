@@ -52,8 +52,7 @@ async function warmup(): Promise<void> {
     console.log();
     console.log(`✅ Warmup complete! (${duration}s)`);
     console.log();
-    console.log("Ready to use! Configure Claude Code and restart to get started.");
-    console.log("See: https://github.com/AerionDyseti/vector-memory-mcp#configure-claude-code");
+    console.log("Ready to use! Configure your MCP client and restart to get started.");
     console.log();
   } catch (error) {
     console.error();

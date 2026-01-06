@@ -2,7 +2,7 @@
 
 ## Overview
 
-A simple, zero-configuration RAG memory server for MCP clients (like Claude Code). It gives AI the ability to recall previous information without having to hold all of that information in context.
+A simple, zero-configuration RAG memory server for MCP clients. It gives AI the ability to recall previous information without having to hold all of that information in context.
 
 ## Design Philosophy
 

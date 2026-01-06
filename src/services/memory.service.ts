@@ -79,6 +79,78 @@ export class MemoryService {
     return results;
   }
 
+  private static readonly UUID_ZERO =
+    "00000000-0000-0000-0000-000000000000";
+
+  async storeContext(args: {
+    project: string;
+    branch?: string;
+    summary: string;
+    completed?: string[];
+    in_progress_blocked?: string[];
+    key_decisions?: string[];
+    next_steps?: string[];
+    memory_ids?: string[];
+    metadata?: Record<string, unknown>;
+  }): Promise<Memory> {
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    const time = now.toISOString().slice(11, 16);
+
+    const list = (items: string[] | undefined) => {
+      if (!items || items.length === 0) {
+        return "- (none)";
+      }
+      return items.map((i) => `- ${i}`).join("\n");
+    };
+
+    const content = `# Handoff - ${args.project}
+**Date:** ${date} ${time} | **Branch:** ${args.branch ?? "unknown"}
+
+## Summary
+${args.summary}
+
+## Completed
+${list(args.completed)}
+
+## In Progress / Blocked
+${list(args.in_progress_blocked)}
+
+## Key Decisions
+${list(args.key_decisions)}
+
+## Next Steps
+${list(args.next_steps)}
+
+## Memory IDs
+${list(args.memory_ids)}`;
+
+    const metadata: Record<string, unknown> = {
+      ...(args.metadata ?? {}),
+      type: "context",
+      project: args.project,
+      date,
+      branch: args.branch ?? "unknown",
+    };
+
+    const memory: Memory = {
+      id: MemoryService.UUID_ZERO,
+      content,
+      embedding: new Array(this.embeddings.dimension).fill(0),
+      metadata,
+      createdAt: now,
+      updatedAt: now,
+      supersededBy: null,
+    };
+
+    await this.repository.upsert(memory);
+    return memory;
+  }
+
+  async getLatestContext(): Promise<Memory | null> {
+    return await this.get(MemoryService.UUID_ZERO);
+  }
+
   private async followSupersessionChain(memoryId: string): Promise<Memory | null> {
     const visited = new Set<string>();
     let currentId: string | null = memoryId;

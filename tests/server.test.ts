@@ -10,6 +10,8 @@ import {
   handleDeleteMemory,
   handleSearchMemories,
   handleGetMemory,
+  handleStoreContext,
+  handleGetContext,
 } from "../src/mcp/handlers";
 import { createServer } from "../src/mcp/server";
 import { connectToDatabase } from "../src/db/connection";
@@ -36,15 +38,14 @@ describe("mcp", () => {
   });
 
   describe("tools", () => {
-    test("exports 4 tools", () => {
+    test("exports 6 tools", () => {
       expect(tools).toBeArray();
-      expect(tools.length).toBe(4);
+      expect(tools.length).toBe(6);
     });
 
     test("has store_memory tool", () => {
       const tool = tools.find((t) => t.name === "store_memory");
       expect(tool).toBeDefined();
-      expect(tool!.inputSchema.required).toContain("content");
     });
 
     test("has delete_memory tool", () => {
@@ -62,7 +63,16 @@ describe("mcp", () => {
     test("has get_memory tool", () => {
       const tool = tools.find((t) => t.name === "get_memory");
       expect(tool).toBeDefined();
-      expect(tool!.inputSchema.required).toContain("id");
+    });
+
+    test("has store_context tool", () => {
+      const tool = tools.find((t) => t.name === "store_context");
+      expect(tool).toBeDefined();
+    });
+
+    test("has get_context tool", () => {
+      const tool = tools.find((t) => t.name === "get_context");
+      expect(tool).toBeDefined();
     });
   });
 
@@ -194,6 +204,44 @@ describe("mcp", () => {
     });
   });
 
+  describe("batch operations", () => {
+    test("store_memory supports batch", async () => {
+      const response = await handleStoreMemory(
+        { memories: [{ content: "a" }, { content: "b" }] },
+        service
+      );
+      expect(response.content[0].text).toContain("Stored 2 memories");
+    });
+
+    test("get_memory supports batch", async () => {
+      const a = await service.store("a");
+      const b = await service.store("b");
+      const response = await handleGetMemory({ ids: [a.id, b.id] }, service);
+      expect(response.content[0].text).toContain(a.id);
+      expect(response.content[0].text).toContain(b.id);
+      expect(response.content[0].text).toContain("---");
+    });
+
+    test("store_context and get_context work", async () => {
+      await handleStoreContext(
+        {
+          project: "Resonance",
+          branch: "main",
+          summary: "S",
+          completed: ["Did X"],
+          in_progress_blocked: ["Doing Y"],
+          key_decisions: ["Chose Z"],
+          next_steps: ["Do W"],
+          memory_ids: ["123"],
+        },
+        service
+      );
+      const response = await handleGetContext({}, service);
+      expect(response.content[0].text).toContain("# Handoff - Resonance");
+      expect(response.content[0].text).toContain("## Memory IDs");
+    });
+  });
+
   describe("handleToolCall", () => {
     test("routes to store_memory", async () => {
       const response = await handleToolCall(
@@ -224,6 +272,18 @@ describe("mcp", () => {
       const mem = await service.store("test");
       const response = await handleToolCall("get_memory", { id: mem.id }, service);
       expect(response.content[0].text).toContain(mem.id);
+    });
+
+    test("routes to store_context and get_context", async () => {
+      const storeRes = await handleToolCall(
+        "store_context",
+        { project: "Resonance", summary: "Summary" },
+        service
+      );
+      expect(storeRes.content[0].text).toContain("Context stored");
+
+      const getRes = await handleToolCall("get_context", {}, service);
+      expect(getRes.content[0].text).toContain("# Handoff - Resonance");
     });
 
     test("returns error for unknown tool", async () => {

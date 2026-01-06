@@ -5,6 +5,31 @@ export async function handleStoreMemory(
   args: Record<string, unknown> | undefined,
   service: MemoryService
 ): Promise<CallToolResult> {
+  const batch = args?.memories as
+    | Array<{ content: string; embedding_text?: string; metadata?: Record<string, unknown> }>
+    | undefined;
+
+  if (Array.isArray(batch)) {
+    const ids: string[] = [];
+    for (const item of batch) {
+      const memory = await service.store(
+        item.content,
+        item.metadata ?? {},
+        item.embedding_text
+      );
+      ids.push(memory.id);
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Stored ${ids.length} memories:\n${ids.map((id) => `- ${id}`).join("\n")}`,
+        },
+      ],
+    };
+  }
+
   const content = args?.content as string;
   const embeddingText = args?.embedding_text as string | undefined;
   const metadata = (args?.metadata as Record<string, unknown>) ?? {};
@@ -65,6 +90,37 @@ export async function handleGetMemory(
   args: Record<string, unknown> | undefined,
   service: MemoryService
 ): Promise<CallToolResult> {
+  const ids = args?.ids as string[] | undefined;
+
+  const format = (memoryId: string, memory: Awaited<ReturnType<MemoryService["get"]>>) => {
+    if (!memory) {
+      return `Memory ${memoryId} not found`;
+    }
+
+    let result = `ID: ${memory.id}\nContent: ${memory.content}`;
+    if (Object.keys(memory.metadata).length > 0) {
+      result += `\nMetadata: ${JSON.stringify(memory.metadata)}`;
+    }
+    result += `\nCreated: ${memory.createdAt.toISOString()}`;
+    result += `\nUpdated: ${memory.updatedAt.toISOString()}`;
+    if (memory.supersededBy) {
+      result += `\nSuperseded by: ${memory.supersededBy}`;
+    }
+    return result;
+  };
+
+  if (Array.isArray(ids)) {
+    const blocks: string[] = [];
+    for (const id of ids) {
+      const memory = await service.get(id);
+      blocks.push(format(id, memory));
+    }
+
+    return {
+      content: [{ type: "text", text: blocks.join("\n\n---\n\n") }],
+    };
+  }
+
   const id = args?.id as string;
   const memory = await service.get(id);
 
@@ -74,18 +130,46 @@ export async function handleGetMemory(
     };
   }
 
-  let result = `ID: ${memory.id}\nContent: ${memory.content}`;
-  if (Object.keys(memory.metadata).length > 0) {
-    result += `\nMetadata: ${JSON.stringify(memory.metadata)}`;
-  }
-  result += `\nCreated: ${memory.createdAt.toISOString()}`;
-  result += `\nUpdated: ${memory.updatedAt.toISOString()}`;
-  if (memory.supersededBy) {
-    result += `\nSuperseded by: ${memory.supersededBy}`;
+  return {
+    content: [{ type: "text", text: format(id, memory) }],
+  };
+}
+
+export async function handleStoreContext(
+  args: Record<string, unknown> | undefined,
+  service: MemoryService
+): Promise<CallToolResult> {
+  const memory = await service.storeContext({
+    project: args?.project as string,
+    branch: args?.branch as string | undefined,
+    summary: args?.summary as string,
+    completed: (args?.completed as string[] | undefined) ?? [],
+    in_progress_blocked: (args?.in_progress_blocked as string[] | undefined) ?? [],
+    key_decisions: (args?.key_decisions as string[] | undefined) ?? [],
+    next_steps: (args?.next_steps as string[] | undefined) ?? [],
+    memory_ids: (args?.memory_ids as string[] | undefined) ?? [],
+    metadata: (args?.metadata as Record<string, unknown>) ?? {},
+  });
+
+  return {
+    content: [{ type: "text", text: `Context stored with memory ID: ${memory.id}` }],
+  };
+}
+
+export async function handleGetContext(
+  _args: Record<string, unknown> | undefined,
+  service: MemoryService
+): Promise<CallToolResult> {
+  const context = await service.getLatestContext();
+
+  if (!context) {
+    return {
+      content: [{ type: "text", text: "No stored context found." }],
+    };
   }
 
   return {
-    content: [{ type: "text", text: result }],
+    content: [{ type: "text", text: context.content }],
   };
 }
 
@@ -103,6 +187,10 @@ export async function handleToolCall(
       return handleSearchMemories(args, service);
     case "get_memory":
       return handleGetMemory(args, service);
+    case "store_context":
+      return handleStoreContext(args, service);
+    case "get_context":
+      return handleGetContext(args, service);
     default:
       return {
         content: [{ type: "text", text: `Unknown tool: ${name}` }],

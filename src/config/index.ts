@@ -1,5 +1,4 @@
 import { join } from "path";
-import { homedir } from "os";
 
 export type TransportMode = "stdio" | "http" | "both";
 
@@ -14,13 +13,9 @@ export interface Config {
   transportMode: TransportMode;
 }
 
-const DEFAULT_DB_PATH = join(
-  homedir(),
-  ".local",
-  "share",
-  "vector-memory-mcp",
-  "memories.db"
-);
+// Default is project-local for isolation (per-repo DB).
+// For a shared/global DB, set VECTOR_MEMORY_DB_PATH explicitly.
+const DEFAULT_DB_PATH = join(process.cwd(), ".claude", "vector-memories.db");
 
 const DEFAULT_EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2";
 const DEFAULT_EMBEDDING_DIMENSION = 384;

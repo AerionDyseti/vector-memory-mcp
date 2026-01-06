@@ -21,9 +21,11 @@ export class EmbeddingsService {
     }
 
     if (!this.initPromise) {
-      this.initPromise = pipeline("feature-extraction", this.modelName, {
-        quantized: true,
-      }) as Promise<FeatureExtractionPipeline>;
+      this.initPromise = pipeline(
+        "feature-extraction",
+        this.modelName,
+        { quantized: true } as any
+      ) as Promise<FeatureExtractionPipeline>;
     }
 
     this.extractor = await this.initPromise;

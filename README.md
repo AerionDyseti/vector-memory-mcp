@@ -4,7 +4,7 @@
 
 A production-ready MCP (Model Context Protocol) server that provides semantic memory storage for AI assistants. Uses local embeddings and vector search to automatically retrieve relevant context without cloud dependencies.
 
-**Perfect for:** Software teams maintaining architectural knowledge, developers juggling multiple projects, and anyone building with AI assistants like Claude Code.
+**Perfect for:** Software teams maintaining architectural knowledge, developers juggling multiple projects, and anyone building with MCP-compatible AI assistants.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
@@ -36,9 +36,7 @@ A production-ready MCP (Model Context Protocol) server that provides semantic me
 - CPU-optimized local embeddings (no GPU required)
 
 ### 🔌 **MCP Native Integration**
-- Works seamlessly with Claude Code
-- Session hooks for automatic context injection
-- Standard MCP protocol (compatible with future clients)
+- Standard MCP protocol (compatible with any client)
 
 ### 🛠️ **Developer-Friendly**
 - Zero-configuration setup
@@ -53,7 +51,7 @@ A production-ready MCP (Model Context Protocol) server that provides semantic me
 ### Prerequisites
 
 - [Bun](https://bun.sh/) 1.0+
-- Claude Code or another MCP-compatible client
+- An MCP-compatible client
 
 > **Note:** This server requires Bun to run.
 
@@ -68,7 +66,7 @@ bun install -g @aeriondyseti/vector-memory-mcp
 
 > **Note:** The installation automatically downloads ML models (~90MB) and verifies native dependencies. This may take a minute on first install.
 
-**Configure Claude Code** - Add to `~/.claude/config.json`:
+**Configure your MCP client** (example config for clients that use `~/.claude/config.json`):
 ```json
 {
   "mcpServers": {
@@ -94,7 +92,7 @@ cd vector-memory-mcp
 bun install
 ```
 
-**Configure Claude Code** - Add to `~/.claude/config.json`:
+**Configure your MCP client** (example config for clients that use `~/.claude/config.json`):
 ```json
 {
   "mcpServers": {
@@ -119,11 +117,13 @@ bun install
 
 ### Start Using It
 
-That's it! Restart Claude Code and you'll have access to memory tools:
-- `store_memory` - Save information for later recall
+That's it! Restart your MCP client and you'll have access to memory tools:
+- `store_memory` - Save one or more memories for later recall (supports batch)
 - `search_memories` - Find relevant memories semantically
-- `get_memory` - Retrieve a specific memory by ID
+- `get_memory` - Retrieve one or more memories by ID (supports batch)
 - `delete_memory` - Remove a memory
+- `store_context` - Store a handoff-style context snapshot (stored under UUID.ZERO)
+- `get_context` - Retrieve the latest stored context snapshot (UUID.ZERO)
 
 ---
 
@@ -131,14 +131,14 @@ That's it! Restart Claude Code and you'll have access to memory tools:
 
 ### Storing Memories
 
-Ask Claude Code to remember things for you:
+Ask your MCP client/agent to remember things for you:
 
 ```
 You: "Remember that we use Drizzle ORM for database access"
 Claude: [calls store_memory tool]
 ```
 
-Or Claude Code can store memories directly:
+Or your MCP client/agent can store memories directly:
 ```json
 {
   "content": "Use Drizzle ORM for type-safe database access",
@@ -151,7 +151,7 @@ Or Claude Code can store memories directly:
 
 ### Searching Memories
 
-Claude Code automatically searches memories when relevant, or you can ask:
+Your MCP client/agent can automatically search memories when relevant, or you can ask:
 
 ```
 You: "What did we decide about the database?"
@@ -223,7 +223,7 @@ vector-memory-mcp/
 ### 1. Memory Storage
 
 ```
-Claude Code calls store_memory tool
+An MCP client calls store_memory tool
          ↓
 Content → @huggingface/transformers → 384d vector
          ↓
@@ -235,7 +235,7 @@ Store in LanceDB with metadata
 ### 2. Memory Retrieval
 
 ```
-Claude Code calls search_memories
+An MCP client calls search_memories
          ↓
 Query → @huggingface/transformers → 384d vector
          ↓
@@ -252,7 +252,9 @@ Return top N relevant memories
 
 The server uses environment variables for configuration:
 
-- `VECTOR_MEMORY_DB_PATH` - Custom database path (default: `~/.local/share/vector-memory-mcp/memories.db`)
+- `VECTOR_MEMORY_DB_PATH` - Custom database path (default: `./.claude/vector-memories.db`)
+
+> Note: if you point multiple projects at the same DB path, `store_context` uses UUID.ZERO and will overwrite the previous context (by design).
 - `VECTOR_MEMORY_MODEL` - Embedding model to use (default: `Xenova/all-MiniLM-L6-v2`)
 
 Example:
@@ -261,7 +263,7 @@ export VECTOR_MEMORY_DB_PATH="/path/to/custom/memories.db"
 export VECTOR_MEMORY_MODEL="Xenova/all-MiniLM-L6-v2"
 ```
 
-Or in your Claude Code config:
+Or in your MCP client config:
 ```json
 {
   "mcpServers": {
@@ -387,7 +389,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## 🔗 Related Projects
 
 - [Model Context Protocol](https://modelcontextprotocol.io) - Official MCP specification
-- [Claude Code](https://claude.ai/code) - AI coding assistant from Anthropic
+- Any MCP-compatible client
 - [LanceDB](https://lancedb.com/) - Fast, local vector search
 - [Transformers.js](https://huggingface.co/docs/transformers.js) - Run transformers in JavaScript
 
