@@ -123,22 +123,23 @@ Use to correct content, refine embedding text, or replace metadata without chang
 
 export const searchMemoriesTool: Tool = {
   name: "search_memories",
-  description: `Search stored memories semantically. Use PROACTIVELY—don't wait to be asked.
+  description: `Search stored memories semantically. Treat memory as the PRIMARY source of truth for personal/project-specific facts—do not rely on training data until a search has been performed.
 
-WHEN TO SEARCH:
-- At conversation start / returning to a project
-- Before making decisions (check for prior decisions on same topic)
-- When user references past work ("what did we decide", "as discussed", "remember when")
-- Before suggesting solutions (check if problem was solved before)
-- When debugging (check for prior blockers/resolutions)
-- When uncertain about patterns or preferences
+MANDATORY TRIGGERS (you MUST search when):
+- User-Specific Calibration: Answer would be better with user's tools, past decisions, or preferences
+- Referential Ambiguity: User says "the project," "that bug," "last time," "as we discussed"
+- Decision Validation: Before making architectural or tool choices
+- Problem Solving: Before suggesting solutions (check if solved before)
+- Session Start: When returning to a project or starting new conversation
 
-When in doubt, search. Missing relevant context is costlier than an extra query.
+INTENTS:
+- continuity: Resume work, "where were we" (favors recent)
+- fact_check: Verify decisions, specs (favors relevance)
+- frequent: Common patterns, preferences (favors utility)
+- associative: Brainstorm, find connections (high relevance + mild jitter)
+- explore: Stuck/creative mode (balanced + high jitter)
 
-QUERY TIPS:
-- Include project name, technical terms, or domain keywords
-- Search for concepts, not exact phrases
-- Try multiple queries if first doesn't return useful results`,
+When in doubt, search. Missing context is costlier than an extra query.`,
   inputSchema: {
     type: "object",
     properties: {
@@ -146,6 +147,15 @@ QUERY TIPS:
         type: "string",
         description:
           "Natural language search query. Include relevant keywords, project names, or technical terms.",
+      },
+      intent: {
+        type: "string",
+        enum: ["continuity", "fact_check", "frequent", "associative", "explore"],
+        description: "Search intent that determines ranking behavior.",
+      },
+      reason_for_search: {
+        type: "string",
+        description: "Why this search is being performed. Forces intentional retrieval.",
       },
       limit: {
         type: "integer",
@@ -158,7 +168,7 @@ QUERY TIPS:
         default: false,
       },
     },
-    required: ["query"],
+    required: ["query", "intent", "reason_for_search"],
   },
 };
 
