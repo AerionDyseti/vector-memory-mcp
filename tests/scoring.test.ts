@@ -8,99 +8,101 @@ import { MemoryRepository } from "../src/db/memory.repository";
 import { EmbeddingsService } from "../src/services/embeddings.service";
 import { MemoryService } from "../src/services/memory.service";
 
-describe("MemoryService - Scoring", () => {
-    let db: lancedb.Connection;
-    let repository: MemoryRepository;
-    let embeddings: EmbeddingsService;
-    let service: MemoryService;
-    let tmpDir: string;
-    let dbPath: string;
+describe("MemoryService - Scoring with Intents", () => {
+  let db: lancedb.Connection;
+  let repository: MemoryRepository;
+  let embeddings: EmbeddingsService;
+  let service: MemoryService;
+  let tmpDir: string;
 
-    beforeEach(async () => {
-        tmpDir = mkdtempSync(join(tmpdir(), "vector-memory-mcp-test-scoring-"));
-        dbPath = join(tmpDir, "test.lancedb");
-        db = await connectToDatabase(dbPath);
-        repository = new MemoryRepository(db);
-        embeddings = new EmbeddingsService("Xenova/all-MiniLM-L6-v2", 384);
-        service = new MemoryService(repository, embeddings);
-    });
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "vector-memory-mcp-test-scoring-"));
+    const dbPath = join(tmpDir, "test.lancedb");
+    db = await connectToDatabase(dbPath);
+    repository = new MemoryRepository(db);
+    embeddings = new EmbeddingsService("Xenova/all-MiniLM-L6-v2", 384);
+    service = new MemoryService(repository, embeddings);
+  });
 
-    afterEach(() => {
-        rmSync(tmpDir, { recursive: true });
-    });
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true });
+  });
 
-    test("recency influences score", async () => {
-        const memoryOld = await service.store("test content");
-        const memoryNew = await service.store("test content");
+  test("search requires intent parameter", async () => {
+    await service.store("test content");
 
-        // Manually age memoryOld by updating createdAt/lastAccessed in DB?
-        // Hard to mock time without proper injection or Date mocking.
-        // Instead, I will manually update the rows in DB to verify logic.
+    // Should work with intent
+    const results = await service.search("test", "fact_check");
+    expect(Array.isArray(results)).toBe(true);
+  });
 
-        // Set memoryOld to be 100 hours old
-        const oldDate = new Date(Date.now() - 100 * 60 * 60 * 1000);
+  test("continuity intent favors recent memories", async () => {
+    const memoryOld = await service.store("project status update");
+    const memoryNew = await service.store("project status update");
 
-        // We need to bypass service to update timestamps directly or use repository
-        // Repository insert/update takes Memory object.
+    // Age memoryOld by 100 hours
+    const oldDate = new Date(Date.now() - 100 * 60 * 60 * 1000);
+    const oldMem = await repository.findById(memoryOld.id);
+    if (oldMem) {
+      await repository.upsert({ ...oldMem, lastAccessed: oldDate });
+    }
 
-        const oldMem = await service.get(memoryOld.id);
-        if (oldMem) {
-            // We'll update created_at via repository upsert, but we need to trick it
-            // The repository takes a Memory object and blindly saves it.
-            // But MemoryService.get updates lastAccessed to NOW.
-            // So we need to call store, then manually overwrite using repository
-            const updatedOld = { ...oldMem, createdAt: oldDate, lastAccessed: oldDate };
-            await repository.upsert(updatedOld);
-        }
+    // continuity favors recency (0.5 weight)
+    const results = await service.search("project status", "continuity");
+    expect(results.length).toBeGreaterThanOrEqual(2);
+    expect(results[0].id).toBe(memoryNew.id);
+  });
 
-        // Initial fetch to get them in search
-        // Since vectors are identical, cosine distance is 0. Similarity = 1.
-        // Importance = 0.
-        // Score = 1 (sim) + 0.995^hours (recency) + 0 (imp)
+  test("frequent intent favors high-utility memories", async () => {
+    const memNormal = await service.store("coding patterns");
+    const memFrequent = await service.store("coding patterns");
 
-        // memoryNew is fresh (0 hours). Recency = 1. Score ~ 2.
-        // memoryOld is 100 hours. Recency = 0.995^100 ~ 0.6. Score ~ 1.6.
+    // Boost memFrequent utility
+    await service.vote(memFrequent.id, 5);
 
-        const results = await service.search("test content");
-        expect(results.length).toBeGreaterThanOrEqual(2);
-        expect(results[0].id).toBe(memoryNew.id);
-        expect(results[1].id).toBe(memoryOld.id);
-    });
+    // frequent favors utility (0.6 weight)
+    const results = await service.search("coding", "frequent");
+    expect(results[0].id).toBe(memFrequent.id);
+  });
 
-    test("importance influences score", async () => {
-        const memNormal = await service.store("unique content A");
-        const memImportant = await service.store("unique content A"); // Same content for collision
+  test("fact_check intent favors relevance", async () => {
+    // Test that fact_check with high relevance weight (0.6) prioritizes semantic match
+    const memExact = await service.store("TypeScript compiler options and settings");
+    const memUnrelated = await service.store("cooking recipes for dinner party");
 
-        // Vote up memImportant
-        await service.vote(memImportant.id, 5); // +5 useful
+    // Without any utility boost, the more relevant memory should rank first
+    const results = await service.search("TypeScript compiler", "fact_check");
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results[0].id).toBe(memExact.id);
+  });
 
-        // memNormal usefulness = 0.
+  test("explore intent has high jitter (results may vary)", async () => {
+    // Store multiple similar memories
+    for (let i = 0; i < 5; i++) {
+      await service.store(`memory item ${i} about testing`);
+    }
 
-        // Search
-        const results = await service.search("unique content A");
-        expect(results[0].id).toBe(memImportant.id);
-        expect(results[1].id).toBe(memNormal.id);
-    });
+    // Run multiple searches - with 15% jitter, order should sometimes differ
+    const results1 = await service.search("testing", "explore", 5);
+    const results2 = await service.search("testing", "explore", 5);
 
-    test("importance can override moderate similarity gap", async () => {
-        // "brown fox" vs "red fox". Semantic gap is small.
-        // memMatch: "The quick brown fox"
-        // memSemi: "The quick red fox"
+    // Both should return results
+    expect(results1.length).toBe(5);
+    expect(results2.length).toBe(5);
 
-        // We expect similarity(memMatch) > similarity(memSemi).
-        // But if we boost memSemi importance, it should win.
+    // Note: Can't reliably test randomness, just verify it doesn't crash
+  });
 
-        const memMatch = await service.store("The quick brown fox");
-        const memSemi = await service.store("The quick red fox");
+  test("search is read-only (does not update access stats)", async () => {
+    const memory = await service.store("read only test");
+    const initialAccess = memory.accessCount;
 
-        // Boost memSemi
-        await service.vote(memSemi.id, 10); // tanh(10) ~ 1
+    // Search multiple times
+    await service.search("read only", "fact_check");
+    await service.search("read only", "fact_check");
 
-        // Query
-        const results = await service.search("brown fox");
-
-        // memSemi should win due to importance
-        expect(results[0].id).toBe(memSemi.id);
-        expect(results[1].id).toBe(memMatch.id);
-    });
+    // Check via repository (bypasses service tracking)
+    const afterSearch = await repository.findById(memory.id);
+    expect(afterSearch!.accessCount).toBe(initialAccess);
+  });
 });

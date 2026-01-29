@@ -4,7 +4,7 @@ import type { MemoryService } from "../services/memory.service.js";
 import type { Config } from "../config/index.js";
 import { isDeleted } from "../types/memory.js";
 import { createMcpRoutes } from "./mcp-transport.js";
-import type { Memory } from "../types/memory.js";
+import type { Memory, SearchIntent } from "../types/memory.js";
 
 export interface HttpServerOptions {
   memoryService: MemoryService;
@@ -44,13 +44,14 @@ export function createHttpApp(memoryService: MemoryService, config: Config): Hon
     try {
       const body = await c.req.json();
       const query = body.query;
+      const intent = (body.intent as SearchIntent) ?? "fact_check";
       const limit = body.limit ?? 10;
 
       if (!query || typeof query !== "string") {
         return c.json({ error: "Missing or invalid 'query' field" }, 400);
       }
 
-      const memories = await memoryService.search(query, limit);
+      const memories = await memoryService.search(query, intent, limit);
 
       return c.json({
         memories: memories.map((m) => ({

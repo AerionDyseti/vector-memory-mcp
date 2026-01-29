@@ -156,7 +156,7 @@ describe("MemoryService", () => {
       await service.store("JavaScript runs in web browsers");
       await service.store("Cats are furry animals");
 
-      const results = await service.search("coding and software development");
+      const results = await service.search("coding and software development", "fact_check");
 
       expect(results.length).toBeGreaterThan(0);
       const contents = results.map((r) => r.content);
@@ -170,7 +170,7 @@ describe("MemoryService", () => {
       await service.store("Memory 2");
       await service.store("Memory 3");
 
-      const results = await service.search("memory", 2);
+      const results = await service.search("memory", "fact_check", 2);
       expect(results.length).toBe(2);
     });
 
@@ -178,12 +178,12 @@ describe("MemoryService", () => {
       // Increase limit to verify default
       const embeddings = new EmbeddingsService("Xenova/all-MiniLM-L6-v2", 384);
       // Mock embeddings to be fast? No, using real ones for integration test
-      
+
       for (let i = 0; i < 12; i++) {
         await service.store(`Memory ${i}`);
       }
 
-      const results = await service.search("memory");
+      const results = await service.search("memory", "fact_check");
       expect(results.length).toBe(10);
     });
 
@@ -193,14 +193,14 @@ describe("MemoryService", () => {
 
       await service.delete(mem1.id);
 
-      const results = await service.search("programming");
+      const results = await service.search("programming", "fact_check");
       const contents = results.map(r => r.content);
       expect(contents).toContain("JavaScript programming");
       expect(contents).not.toContain("Python programming");
     });
 
     test("returns empty array when no matches", async () => {
-      const results = await service.search("nonexistent query");
+      const results = await service.search("nonexistent query", "fact_check");
       // Depending on implementation, strict empty array check might fail if everything matches slightly
       // But with few docs, it might return empty if threshold (if any) or just returns 0
       // Actually vector search always returns closest. But we only have 0 docs here?
@@ -228,9 +228,9 @@ describe("MemoryRepository", () => {
     rmSync(tmpDir, { recursive: true });
   });
 
-  describe("findSimilar", () => {
+  describe("findHybrid", () => {
     test("returns empty array when no memories", async () => {
-      const results = await repository.findSimilar(new Array(384).fill(0), 10);
+      const results = await repository.findHybrid(new Array(384).fill(0), "test", 10);
       expect(results).toBeArray();
       expect(results.length).toBe(0);
     });

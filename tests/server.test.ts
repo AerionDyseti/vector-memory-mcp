@@ -205,13 +205,13 @@ describe("mcp", () => {
       await service.store("Python programming language");
       await service.store("JavaScript web development");
 
-      const response = await handleSearchMemories({ query: "programming" }, service);
+      const response = await handleSearchMemories({ query: "programming", intent: "fact_check", reason_for_search: "test" }, service);
 
       expect(response.content[0].text).toContain("Python");
     });
 
     test("returns no memories message when empty", async () => {
-      const response = await handleSearchMemories({ query: "nonexistent" }, service);
+      const response = await handleSearchMemories({ query: "nonexistent", intent: "fact_check", reason_for_search: "test" }, service);
 
       expect(response.content[0].text).toBe("No memories found matching your query.");
     });
@@ -222,7 +222,7 @@ describe("mcp", () => {
       await service.store("Memory 3");
 
       const response = await handleSearchMemories(
-        { query: "memory", limit: 1 },
+        { query: "memory", intent: "fact_check", reason_for_search: "test", limit: 1 },
         service
       );
 
@@ -232,7 +232,7 @@ describe("mcp", () => {
     test("includes metadata in results", async () => {
       await service.store("Test memory", { tag: "important" });
 
-      const response = await handleSearchMemories({ query: "test" }, service);
+      const response = await handleSearchMemories({ query: "test", intent: "fact_check", reason_for_search: "test" }, service);
 
       expect(response.content[0].text).toContain("Metadata:");
       expect(response.content[0].text).toContain("important");
@@ -243,7 +243,7 @@ describe("mcp", () => {
       await service.store("Second memory");
 
       const response = await handleSearchMemories(
-        { query: "memory", limit: 2 },
+        { query: "memory", intent: "fact_check", reason_for_search: "test", limit: 2 },
         service
       );
 
@@ -255,7 +255,7 @@ describe("mcp", () => {
       await service.delete(mem.id);
 
       const response = await handleSearchMemories(
-        { query: "deleted memory" },
+        { query: "deleted memory", intent: "fact_check", reason_for_search: "test" },
         service
       );
 
@@ -267,7 +267,7 @@ describe("mcp", () => {
       await service.delete(mem.id);
 
       const response = await handleSearchMemories(
-        { query: "deleted memory", include_deleted: true },
+        { query: "deleted memory", intent: "fact_check", reason_for_search: "test", include_deleted: true },
         service
       );
 
@@ -380,7 +380,7 @@ describe("mcp", () => {
       await service.store("test content");
       const response = await handleToolCall(
         "search_memories",
-        { query: "test" },
+        { query: "test", intent: "fact_check", reason_for_search: "test" },
         service
       );
       expect(response.content[0].text).toContain("test content");

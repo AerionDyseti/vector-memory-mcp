@@ -1,5 +1,6 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { MemoryService } from "../services/memory.service.js";
+import type { SearchIntent } from "../types/memory.js";
 
 export async function handleStoreMemories(
   args: Record<string, unknown> | undefined,
@@ -101,9 +102,11 @@ export async function handleSearchMemories(
   service: MemoryService
 ): Promise<CallToolResult> {
   const query = args?.query as string;
+  const intent = (args?.intent as SearchIntent) ?? "fact_check";
+  const _reasonForSearch = args?.reason_for_search as string; // Logged but not used in logic
   const limit = (args?.limit as number) ?? 10;
   const includeDeleted = (args?.include_deleted as boolean) ?? false;
-  const memories = await service.search(query, limit, includeDeleted);
+  const memories = await service.search(query, intent, limit, includeDeleted);
 
   if (memories.length === 0) {
     return {

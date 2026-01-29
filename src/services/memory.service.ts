@@ -1,8 +1,18 @@
 import { randomUUID } from "crypto";
-import type { Memory } from "../types/memory.js";
+import type { Memory, SearchIntent, IntentProfile } from "../types/memory.js";
 import { isDeleted } from "../types/memory.js";
 import type { MemoryRepository } from "../db/memory.repository.js";
 import type { EmbeddingsService } from "./embeddings.service.js";
+
+const INTENT_PROFILES: Record<SearchIntent, IntentProfile> = {
+  continuity: { weights: { relevance: 0.3, recency: 0.5, utility: 0.2 }, jitter: 0.02 },
+  fact_check: { weights: { relevance: 0.6, recency: 0.1, utility: 0.3 }, jitter: 0.02 },
+  frequent: { weights: { relevance: 0.2, recency: 0.2, utility: 0.6 }, jitter: 0.02 },
+  associative: { weights: { relevance: 0.7, recency: 0.1, utility: 0.2 }, jitter: 0.05 },
+  explore: { weights: { relevance: 0.4, recency: 0.3, utility: 0.3 }, jitter: 0.15 },
+};
+
+const sigmoid = (x: number): number => 1 / (1 + Math.exp(-x));
 
 export class MemoryService {
   constructor(
@@ -30,7 +40,7 @@ export class MemoryService {
       supersededBy: null,
       usefulness: 0,
       accessCount: 0,
-      lastAccessed: null,
+      lastAccessed: now, // Initialize to createdAt for fair discovery
     };
 
     await this.repository.insert(memory);
@@ -43,26 +53,20 @@ export class MemoryService {
       return null;
     }
 
-    // Track access
+    // Track access on explicit get
     const updatedMemory: Memory = {
       ...memory,
       accessCount: memory.accessCount + 1,
       lastAccessed: new Date(),
     };
 
-    // We update asynchronously to avoid blocking read, but we should return the updated state.
-    // Spec says "increment whenever a memory is returned as part of search memories tool",
-    // and "last_accessed ... retrieval via search memories or get memories".
-    // Awaiting here for consistency.
     await this.repository.upsert(updatedMemory);
-
     return updatedMemory;
   }
 
   async delete(id: string): Promise<boolean> {
     return await this.repository.markDeleted(id);
   }
-
 
   async update(
     id: string,
@@ -105,9 +109,12 @@ export class MemoryService {
       return null;
     }
 
+    // Vote also tracks access (explicit utilization signal)
     const updatedMemory: Memory = {
       ...existing,
       usefulness: existing.usefulness + value,
+      accessCount: existing.accessCount + 1,
+      lastAccessed: new Date(),
       updatedAt: new Date(),
     };
 
@@ -117,95 +124,63 @@ export class MemoryService {
 
   async search(
     query: string,
+    intent: SearchIntent,
     limit: number = 10,
     includeDeleted: boolean = false
   ): Promise<Memory[]> {
     const queryEmbedding = await this.embeddings.embed(query);
-    // Fetch more candidates to allow re-ranking (5x limit)
-    const fetchLimit = limit * 5;
+    const fetchLimit = limit * 5; // Fetch more for re-ranking
 
-    const rows = await this.repository.findSimilar(queryEmbedding, fetchLimit);
+    const candidates = await this.repository.findHybrid(queryEmbedding, query, fetchLimit);
+    const profile = INTENT_PROFILES[intent];
+    const now = new Date();
 
-    const candidates: { memory: Memory; score: number }[] = [];
+    const scored = candidates
+      .filter((m) => includeDeleted || !isDeleted(m))
+      .map((candidate) => {
+        // Relevance: RRF score (already normalized ~0-1)
+        const relevance = candidate.rrfScore;
 
-    for (const row of rows) {
-      const memory = await this.repository.findById(row.id);
+        // Recency: exponential decay
+        const lastAccessed = candidate.lastAccessed ?? candidate.createdAt;
+        const hoursSinceAccess = Math.max(0, (now.getTime() - lastAccessed.getTime()) / (1000 * 60 * 60));
+        const recency = Math.pow(0.995, hoursSinceAccess);
 
-      if (!memory) {
-        continue;
-      }
+        // Utility: sigmoid of usefulness + log(accessCount)
+        const utility = sigmoid((candidate.usefulness + Math.log(candidate.accessCount + 1)) / 5);
 
-      if (!includeDeleted && isDeleted(memory)) {
-        continue;
-      }
+        // Weighted score
+        const { weights, jitter } = profile;
+        const score =
+          weights.relevance * relevance +
+          weights.recency * recency +
+          weights.utility * utility;
 
-      // Calculate composite score
-      // row.distance is cosine distance (lower is better, 0 to 2 range usually for cosine distance in strictly positive space or 0-1?)
-      // LanceDB default metric is L2 or Cosine? 
-      // Usually vector search returns distance. If it is cosine distance, 0 is identical, 1 is orthogonal, 2 is opposite.
-      // Similarity = 1 - distance (approx) for ranking. 
-      // Let's assume standard behavior where smaller distance = more similar.
-      const score = this.calculateScore(memory, row.distance);
-      candidates.push({ memory, score });
-    }
+        // Apply jitter
+        const finalScore = score * (1 + (Math.random() * 2 - 1) * jitter);
 
-    // Sort by score descending
-    candidates.sort((a, b) => b.score - a.score);
+        return { memory: candidate as Memory, finalScore };
+      });
 
-    // Take top N
-    const topResults = candidates.slice(0, limit);
+    // Sort by final score descending
+    scored.sort((a, b) => b.finalScore - a.finalScore);
 
-    const trackedResults: Memory[] = [];
-
-    for (const result of topResults) {
-      const memory = result.memory;
-
-      // Track access
-      const updatedMemory: Memory = {
-        ...memory,
-        accessCount: memory.accessCount + 1,
-        lastAccessed: new Date(),
-      };
-      await this.repository.upsert(updatedMemory);
-
-      trackedResults.push(updatedMemory);
-    }
-
-    return trackedResults;
+    // Return top N (read-only - no access tracking)
+    return scored.slice(0, limit).map((s) => s.memory);
   }
 
-  private calculateScore(memory: Memory, distance: number): number {
-    // 1. Similarity
-    // Assuming distance is cosine distance (0-2 range). 
-    // We want a similarity score between 0 and 1 (roughly).
-    // If distance is explicitly L2, this might be unbounded. 
-    // But for normalized vectors, L2 is related to Cosine.
-    // Let's treat (1 - distance) as a proxy for similarity.
-    // If distance > 1 (opposite), score becomes negative, which is fine.
-    const similarity = 1 - distance;
-
-    // 2. Recency
-    // Exponential decay: 0.995 ^ hours_since_last_access
+  async trackAccess(ids: string[]): Promise<void> {
     const now = new Date();
-    // Use lastAccessed if available, otherwise createdAt (age of memory)
-    const lastTime = memory.lastAccessed ?? memory.createdAt;
-    const hoursSinceAccess = Math.max(0, (now.getTime() - lastTime.getTime()) / (1000 * 60 * 60));
-    const recency = Math.pow(0.995, hoursSinceAccess);
-
-    // 3. Importance
-    // Map usefulness (integer) to -1 to 1 range (or 0 to 1?)
-    // Tanh maps (-inf, inf) to (-1, 1).
-    // Usefulness defaults to 0 -> tanh(0) = 0.
-    // High positive usefulness -> close to 1.
-    // High negative usefulness -> close to -1.
-    const importance = Math.tanh(memory.usefulness);
-
-    // Weights (currently all 1.0)
-    const wSimilarity = 1.0;
-    const wRecency = 1.0;
-    const wImportance = 1.0;
-
-    return (similarity * wSimilarity) + (recency * wRecency) + (importance * wImportance);
+    for (const id of ids) {
+      const memory = await this.repository.findById(id);
+      if (memory && !isDeleted(memory)) {
+        await this.repository.upsert({
+          ...memory,
+          accessCount: memory.accessCount + 1,
+          lastAccessed: now,
+        });
+      }
+    }
   }
 
   private static readonly UUID_ZERO =
@@ -222,6 +197,11 @@ export class MemoryService {
     memory_ids?: string[];
     metadata?: Record<string, unknown>;
   }): Promise<Memory> {
+    // Track access for utilized memories
+    if (args.memory_ids && args.memory_ids.length > 0) {
+      await this.trackAccess(args.memory_ids);
+    }
+
     const now = new Date();
     const date = now.toISOString().slice(0, 10);
     const time = now.toISOString().slice(11, 16);
@@ -273,7 +253,7 @@ ${list(args.memory_ids)}`;
       supersededBy: null,
       usefulness: 0,
       accessCount: 0,
-      lastAccessed: null,
+      lastAccessed: now, // Initialize to now for consistency
     };
 
     await this.repository.upsert(memory);
