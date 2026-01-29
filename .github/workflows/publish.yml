@@ -5,7 +5,7 @@ on:
   push:
     tags:
       - 'v*'
-  # Allow manual trigger for dev releases
+  # Allow manual trigger
   workflow_dispatch:
     inputs:
       tag:
@@ -28,6 +28,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Determine npm tag
+        id: npm-tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" =~ -dev|-alpha|-beta|-rc ]]; then
+            echo "tag=dev" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+          echo "Publishing with npm tag: $(cat $GITHUB_OUTPUT | grep tag | cut -d= -f2)"
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -45,10 +57,5 @@ jobs:
       - name: Run tests
         run: bun run test
 
-      - name: Publish to npm (tag release)
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-        run: npm publish --access public
-
-      - name: Publish to npm (manual dev)
-        if: github.event_name == 'workflow_dispatch'
-        run: npm publish --access public --tag ${{ inputs.tag }}
+      - name: Publish to npm
+        run: npm publish --access public --tag ${{ steps.npm-tag.outputs.tag }}
