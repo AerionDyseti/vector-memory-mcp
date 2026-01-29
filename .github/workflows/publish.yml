@@ -1,0 +1,54 @@
+name: Publish to npm
+
+on:
+  # Trigger on version tags
+  push:
+    tags:
+      - 'v*'
+  # Allow manual trigger for dev releases
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'npm tag (dev or latest)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - latest
+
+permissions:
+  id-token: write   # Required for OIDC trusted publishing
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js (for npm publish)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run tests
+        run: bun run test
+
+      - name: Publish to npm (tag release)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: npm publish --access public
+
+      - name: Publish to npm (manual dev)
+        if: github.event_name == 'workflow_dispatch'
+        run: npm publish --access public --tag ${{ inputs.tag }}
