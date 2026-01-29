@@ -121,13 +121,12 @@ export class MemoryService {
     includeDeleted: boolean = false
   ): Promise<Memory[]> {
     const queryEmbedding = await this.embeddings.embed(query);
-    const fetchLimit = limit * 3;
+    // Fetch more candidates to allow re-ranking (5x limit)
+    const fetchLimit = limit * 5;
 
     const rows = await this.repository.findSimilar(queryEmbedding, fetchLimit);
 
-    const results: Memory[] = [];
-
-    const trackedResults: Memory[] = [];
+    const candidates: { memory: Memory; score: number }[] = [];
 
     for (const row of rows) {
       const memory = await this.repository.findById(row.id);
@@ -140,6 +139,27 @@ export class MemoryService {
         continue;
       }
 
+      // Calculate composite score
+      // row.distance is cosine distance (lower is better, 0 to 2 range usually for cosine distance in strictly positive space or 0-1?)
+      // LanceDB default metric is L2 or Cosine? 
+      // Usually vector search returns distance. If it is cosine distance, 0 is identical, 1 is orthogonal, 2 is opposite.
+      // Similarity = 1 - distance (approx) for ranking. 
+      // Let's assume standard behavior where smaller distance = more similar.
+      const score = this.calculateScore(memory, row.distance);
+      candidates.push({ memory, score });
+    }
+
+    // Sort by score descending
+    candidates.sort((a, b) => b.score - a.score);
+
+    // Take top N
+    const topResults = candidates.slice(0, limit);
+
+    const trackedResults: Memory[] = [];
+
+    for (const result of topResults) {
+      const memory = result.memory;
+
       // Track access
       const updatedMemory: Memory = {
         ...memory,
@@ -149,12 +169,43 @@ export class MemoryService {
       await this.repository.upsert(updatedMemory);
 
       trackedResults.push(updatedMemory);
-      if (trackedResults.length >= limit) {
-        break;
-      }
     }
 
     return trackedResults;
+  }
+
+  private calculateScore(memory: Memory, distance: number): number {
+    // 1. Similarity
+    // Assuming distance is cosine distance (0-2 range). 
+    // We want a similarity score between 0 and 1 (roughly).
+    // If distance is explicitly L2, this might be unbounded. 
+    // But for normalized vectors, L2 is related to Cosine.
+    // Let's treat (1 - distance) as a proxy for similarity.
+    // If distance > 1 (opposite), score becomes negative, which is fine.
+    const similarity = 1 - distance;
+
+    // 2. Recency
+    // Exponential decay: 0.995 ^ hours_since_last_access
+    const now = new Date();
+    // Use lastAccessed if available, otherwise createdAt (age of memory)
+    const lastTime = memory.lastAccessed ?? memory.createdAt;
+    const hoursSinceAccess = Math.max(0, (now.getTime() - lastTime.getTime()) / (1000 * 60 * 60));
+    const recency = Math.pow(0.995, hoursSinceAccess);
+
+    // 3. Importance
+    // Map usefulness (integer) to -1 to 1 range (or 0 to 1?)
+    // Tanh maps (-inf, inf) to (-1, 1).
+    // Usefulness defaults to 0 -> tanh(0) = 0.
+    // High positive usefulness -> close to 1.
+    // High negative usefulness -> close to -1.
+    const importance = Math.tanh(memory.usefulness);
+
+    // Weights (currently all 1.0)
+    const wSimilarity = 1.0;
+    const wRecency = 1.0;
+    const wImportance = 1.0;
+
+    return (similarity * wSimilarity) + (recency * wRecency) + (importance * wImportance);
   }
 
   private static readonly UUID_ZERO =
