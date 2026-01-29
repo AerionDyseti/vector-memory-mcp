@@ -13,11 +13,6 @@ export interface Memory {
   lastAccessed: Date | null;
 }
 
-export interface VectorRow {
-  id: string;
-  distance: number;
-}
-
 export function isDeleted(memory: Memory): boolean {
   return memory.supersededBy === DELETED_TOMBSTONE;
 }
@@ -34,4 +29,15 @@ export function memoryToDict(memory: Memory): Record<string, unknown> {
     accessCount: memory.accessCount,
     lastAccessed: memory.lastAccessed?.toISOString() ?? null,
   };
+}
+
+export type SearchIntent = 'continuity' | 'fact_check' | 'frequent' | 'associative' | 'explore';
+
+export interface IntentProfile {
+  weights: { relevance: number; recency: number; utility: number };
+  jitter: number;
+}
+
+export interface HybridRow extends Memory {
+  rrfScore: number;
 }
