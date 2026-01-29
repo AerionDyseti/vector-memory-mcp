@@ -1,10 +1,60 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { serve as nodeServe } from "@hono/node-server";
+import { createServer } from "net";
 import type { MemoryService } from "../services/memory.service.js";
 import type { Config } from "../config/index.js";
 import { isDeleted } from "../types/memory.js";
 import { createMcpRoutes } from "./mcp-transport.js";
 import type { Memory, SearchIntent } from "../types/memory.js";
+
+// Detect runtime
+const isBun = typeof globalThis.Bun !== "undefined";
+
+/**
+ * Check if a port is available by attempting to bind to it
+ */
+async function isPortAvailable(port: number, host: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = createServer();
+    server.once("error", () => {
+      resolve(false);
+    });
+    server.once("listening", () => {
+      server.close(() => resolve(true));
+    });
+    server.listen(port, host);
+  });
+}
+
+/**
+ * Find an available port, starting with the preferred port.
+ * If preferred port is unavailable, picks a random available port.
+ */
+async function findAvailablePort(
+  preferredPort: number,
+  host: string
+): Promise<number> {
+  if (await isPortAvailable(preferredPort, host)) {
+    return preferredPort;
+  }
+
+  console.error(
+    `[vector-memory-mcp] Port ${preferredPort} is in use, finding an available port...`
+  );
+
+  // Let the OS pick a random available port
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.once("listening", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : 0;
+      server.close(() => resolve(port));
+    });
+    server.listen(0, host);
+  });
+}
 
 export interface HttpServerOptions {
   memoryService: MemoryService;
@@ -172,20 +222,43 @@ export function createHttpApp(memoryService: MemoryService, config: Config): Hon
 export async function startHttpServer(
   memoryService: MemoryService,
   config: Config
-): Promise<{ stop: () => void }> {
+): Promise<{ stop: () => void; port: number }> {
   const app = createHttpApp(memoryService, config);
 
-  const server = Bun.serve({
-    port: config.httpPort,
-    hostname: config.httpHost,
-    fetch: app.fetch,
-  });
+  // Find an available port (uses configured port if available, otherwise picks a random one)
+  const actualPort = await findAvailablePort(config.httpPort, config.httpHost);
 
-  console.error(
-    `[vector-memory-mcp] HTTP server listening on http://${config.httpHost}:${config.httpPort}`
-  );
+  if (isBun) {
+    // Use Bun's native server
+    const server = Bun.serve({
+      port: actualPort,
+      hostname: config.httpHost,
+      fetch: app.fetch,
+    });
 
-  return {
-    stop: () => server.stop(),
-  };
+    console.error(
+      `[vector-memory-mcp] HTTP server listening on http://${config.httpHost}:${actualPort}`
+    );
+
+    return {
+      stop: () => server.stop(),
+      port: actualPort,
+    };
+  } else {
+    // Use Node.js server via @hono/node-server
+    const server = nodeServe({
+      fetch: app.fetch,
+      port: actualPort,
+      hostname: config.httpHost,
+    });
+
+    console.error(
+      `[vector-memory-mcp] HTTP server listening on http://${config.httpHost}:${actualPort}`
+    );
+
+    return {
+      stop: () => server.close(),
+      port: actualPort,
+    };
+  }
 }

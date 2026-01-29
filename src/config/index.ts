@@ -1,5 +1,8 @@
 import arg from "arg";
-import { join } from "path";
+import { isAbsolute, join } from "path";
+import packageJson from "../../package.json" with { type: "json" };
+
+export const VERSION = packageJson.version;
 
 export type TransportMode = "stdio" | "http" | "both";
 
@@ -28,7 +31,7 @@ const DEFAULT_HTTP_PORT = 3271;
 const DEFAULT_HTTP_HOST = "127.0.0.1";
 
 function resolvePath(path: string): string {
-  return path.startsWith("/") ? path : join(process.cwd(), path);
+  return isAbsolute(path) ? path : join(process.cwd(), path);
 }
 
 export function loadConfig(overrides: ConfigOverrides = {}): Config {

@@ -57,5 +57,8 @@ jobs:
       - name: Run tests
         run: bun run test
 
+      - name: Build
+        run: bun run build
+
       - name: Publish to npm
         run: npm publish --access public --tag ${{ steps.npm-tag.outputs.tag }}
