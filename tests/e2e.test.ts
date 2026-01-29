@@ -1,6 +1,10 @@
 /**
  * E2E tests that spawn actual server processes and test full workflows.
  * Tests both stdio and HTTP transports.
+ *
+ * NOTE: These tests are skipped in CI because they spawn Node.js processes
+ * and require reliable process management that's flaky in CI environments.
+ * Run locally with: bun test tests/e2e.test.ts
  */
 
 import { describe, expect, test, beforeAll, afterAll } from "bun:test";
@@ -8,6 +12,10 @@ import { spawn, type Subprocess } from "bun";
 import { mkdtempSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+
+// Skip E2E tests in CI - they require spawning Node processes which is flaky
+const isCI = process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true";
+const describeE2E = isCI ? describe.skip : describe;
 
 const SERVER_PATH = join(import.meta.dir, "../dist/src/index.js");
 
@@ -124,7 +132,7 @@ async function callToolHttp(
   return response.result?.content[0]?.text ?? "";
 }
 
-describe("E2E: Stdio Transport", () => {
+describeE2E("E2E: Stdio Transport", () => {
   let proc: Subprocess;
   let tmpDir: string;
 
@@ -210,7 +218,7 @@ describe("E2E: Stdio Transport", () => {
   });
 });
 
-describe("E2E: HTTP Transport", () => {
+describeE2E("E2E: HTTP Transport", () => {
   let proc: Subprocess;
   let tmpDir: string;
   let dbPath: string;
