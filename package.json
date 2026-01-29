@@ -34,10 +34,7 @@
     "test:coverage": "bun test --preload ./tests/preload.ts --coverage",
     "test:preload": "bun run tests/preload.ts",
     "warmup": "bun run scripts/warmup.ts",
-    "postinstall": "bun run scripts/warmup.ts",
-    "publish:check": "bun run scripts/publish.ts --dry-run",
-    "publish:npm": "bun run scripts/publish.ts",
-    "publish:dev": "npm publish --access public --tag dev"
+    "postinstall": "bun run scripts/warmup.ts"
   },
   "keywords": [
     "mcp",
