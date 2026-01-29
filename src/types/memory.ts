@@ -8,6 +8,9 @@ export interface Memory {
   createdAt: Date;
   updatedAt: Date;
   supersededBy: string | null;
+  usefulness: number;
+  accessCount: number;
+  lastAccessed: Date | null;
 }
 
 export interface VectorRow {
@@ -27,5 +30,8 @@ export function memoryToDict(memory: Memory): Record<string, unknown> {
     createdAt: memory.createdAt.toISOString(),
     updatedAt: memory.updatedAt.toISOString(),
     supersededBy: memory.supersededBy,
+    usefulness: memory.usefulness,
+    accessCount: memory.accessCount,
+    lastAccessed: memory.lastAccessed?.toISOString() ?? null,
   };
 }

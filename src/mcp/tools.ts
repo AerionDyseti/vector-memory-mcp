@@ -179,6 +179,25 @@ export const getMemoriesTool: Tool = {
   },
 };;
 
+export const reportMemoryUsefulnessTool: Tool = {
+  name: "report_memory_usefulness",
+  description: "Report whether a memory was useful or not. This helps the system learn which memories are valuable.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      memory_id: {
+        type: "string",
+        description: "ID of the memory to report on.",
+      },
+      useful: {
+        type: "boolean",
+        description: "True if the memory was useful, false otherwise.",
+      },
+    },
+    required: ["memory_id", "useful"],
+  },
+};
+
 export const storeHandoffTool: Tool = {
   name: "store_handoff",
   description: `Save session state for seamless resumption later. Use at end of work sessions or before context switches.
@@ -249,6 +268,7 @@ export const tools: Tool[] = [
   deleteMemoriesTool,
   searchMemoriesTool,
   getMemoriesTool,
+  reportMemoryUsefulnessTool,
   storeHandoffTool,
   getHandoffTool,
 ];

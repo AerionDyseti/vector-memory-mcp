@@ -164,6 +164,32 @@ export async function handleGetMemories(
   };
 }
 
+export async function handleReportMemoryUsefulness(
+  args: Record<string, unknown> | undefined,
+  service: MemoryService
+): Promise<CallToolResult> {
+  const memoryId = args?.memory_id as string;
+  const useful = args?.useful as boolean;
+
+  const memory = await service.vote(memoryId, useful ? 1 : -1);
+
+  if (!memory) {
+    return {
+      content: [{ type: "text", text: `Memory ${memoryId} not found` }],
+      isError: true,
+    };
+  }
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: `Memory ${memoryId} marked as ${useful ? "useful" : "not useful"}. New usefulness score: ${memory.usefulness}`,
+      },
+    ],
+  };
+}
+
 export async function handleStoreHandoff(
   args: Record<string, unknown> | undefined,
   service: MemoryService
@@ -235,6 +261,8 @@ export async function handleToolCall(
       return handleSearchMemories(args, service);
     case "get_memories":
       return handleGetMemories(args, service);
+    case "report_memory_usefulness":
+      return handleReportMemoryUsefulness(args, service);
     case "store_handoff":
       return handleStoreHandoff(args, service);
     case "get_handoff":

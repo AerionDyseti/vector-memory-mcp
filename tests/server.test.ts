@@ -39,9 +39,9 @@ describe("mcp", () => {
   });
 
   describe("tools", () => {
-    test("exports 7 tools", () => {
+    test("exports 8 tools", () => {
       expect(tools).toBeArray();
-      expect(tools.length).toBe(7);
+      expect(tools.length).toBe(8);
     });
 
     test("has store_memories tool", () => {

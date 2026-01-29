@@ -6,6 +6,7 @@ import {
   Utf8,
   Timestamp,
   TimeUnit,
+  Int32,
 } from "apache-arrow";
 
 export const TABLE_NAME = "memories";
@@ -30,5 +31,12 @@ export const memorySchema = new Schema([
     false
   ),
   new Field("superseded_by", new Utf8(), true), // Nullable
+  new Field("usefulness", new Float32(), false),
+  new Field("access_count", new Int32(), false),
+  new Field(
+    "last_accessed",
+    new Timestamp(TimeUnit.MILLISECOND),
+    true
+  ),
 ]);
 

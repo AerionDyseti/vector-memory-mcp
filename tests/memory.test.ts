@@ -15,6 +15,9 @@ describe("types/memory", () => {
     createdAt: new Date("2024-01-01T00:00:00Z"),
     updatedAt: new Date("2024-01-01T00:00:00Z"),
     supersededBy: null,
+    usefulness: 0,
+    accessCount: 0,
+    lastAccessed: null,
     ...overrides,
   });
 
@@ -53,6 +56,9 @@ describe("types/memory", () => {
         createdAt: "2024-01-01T00:00:00.000Z",
         updatedAt: "2024-01-01T00:00:00.000Z",
         supersededBy: null,
+        usefulness: 0,
+        accessCount: 0,
+        lastAccessed: null,
       });
     });
 

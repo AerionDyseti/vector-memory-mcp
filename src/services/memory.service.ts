@@ -8,7 +8,7 @@ export class MemoryService {
   constructor(
     private repository: MemoryRepository,
     private embeddings: EmbeddingsService
-  ) {}
+  ) { }
 
   async store(
     content: string,
@@ -28,6 +28,9 @@ export class MemoryService {
       createdAt: now,
       updatedAt: now,
       supersededBy: null,
+      usefulness: 0,
+      accessCount: 0,
+      lastAccessed: null,
     };
 
     await this.repository.insert(memory);
@@ -35,7 +38,25 @@ export class MemoryService {
   }
 
   async get(id: string): Promise<Memory | null> {
-    return await this.repository.findById(id);
+    const memory = await this.repository.findById(id);
+    if (!memory) {
+      return null;
+    }
+
+    // Track access
+    const updatedMemory: Memory = {
+      ...memory,
+      accessCount: memory.accessCount + 1,
+      lastAccessed: new Date(),
+    };
+
+    // We update asynchronously to avoid blocking read, but we should return the updated state.
+    // Spec says "increment whenever a memory is returned as part of search memories tool",
+    // and "last_accessed ... retrieval via search memories or get memories".
+    // Awaiting here for consistency.
+    await this.repository.upsert(updatedMemory);
+
+    return updatedMemory;
   }
 
   async delete(id: string): Promise<boolean> {
@@ -78,6 +99,22 @@ export class MemoryService {
     return updatedMemory;
   }
 
+  async vote(id: string, value: number): Promise<Memory | null> {
+    const existing = await this.repository.findById(id);
+    if (!existing) {
+      return null;
+    }
+
+    const updatedMemory: Memory = {
+      ...existing,
+      usefulness: existing.usefulness + value,
+      updatedAt: new Date(),
+    };
+
+    await this.repository.upsert(updatedMemory);
+    return updatedMemory;
+  }
+
   async search(
     query: string,
     limit: number = 10,
@@ -90,6 +127,8 @@ export class MemoryService {
 
     const results: Memory[] = [];
 
+    const trackedResults: Memory[] = [];
+
     for (const row of rows) {
       const memory = await this.repository.findById(row.id);
 
@@ -101,13 +140,21 @@ export class MemoryService {
         continue;
       }
 
-      results.push(memory);
-      if (results.length >= limit) {
+      // Track access
+      const updatedMemory: Memory = {
+        ...memory,
+        accessCount: memory.accessCount + 1,
+        lastAccessed: new Date(),
+      };
+      await this.repository.upsert(updatedMemory);
+
+      trackedResults.push(updatedMemory);
+      if (trackedResults.length >= limit) {
         break;
       }
     }
 
-    return results;
+    return trackedResults;
   }
 
   private static readonly UUID_ZERO =
@@ -173,6 +220,9 @@ ${list(args.memory_ids)}`;
       createdAt: now,
       updatedAt: now,
       supersededBy: null,
+      usefulness: 0,
+      accessCount: 0,
+      lastAccessed: null,
     };
 
     await this.repository.upsert(memory);

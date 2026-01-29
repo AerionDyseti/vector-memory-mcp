@@ -7,7 +7,7 @@ import {
 } from "../types/memory.js";
 
 export class MemoryRepository {
-  constructor(private db: lancedb.Connection) {}
+  constructor(private db: lancedb.Connection) { }
 
   private async getTable() {
     const names = await this.db.tableNames();
@@ -29,6 +29,9 @@ export class MemoryRepository {
         created_at: memory.createdAt.getTime(),
         updated_at: memory.updatedAt.getTime(),
         superseded_by: memory.supersededBy,
+        usefulness: memory.usefulness,
+        access_count: memory.accessCount,
+        last_accessed: memory.lastAccessed?.getTime() ?? null,
       },
     ]);
   }
@@ -50,6 +53,9 @@ export class MemoryRepository {
         created_at: memory.createdAt.getTime(),
         updated_at: memory.updatedAt.getTime(),
         superseded_by: memory.supersededBy,
+        usefulness: memory.usefulness,
+        access_count: memory.accessCount,
+        last_accessed: memory.lastAccessed?.getTime() ?? null,
       },
     });
   }
@@ -63,12 +69,12 @@ export class MemoryRepository {
     }
 
     const row = results[0];
-    
+
     // Handle Arrow Vector type conversion
     // LanceDB returns an Arrow Vector object which is iterable but not an array
     const vectorData = row.vector as any;
-    const embedding = Array.isArray(vectorData) 
-      ? vectorData 
+    const embedding = Array.isArray(vectorData)
+      ? vectorData
       : Array.from(vectorData) as number[];
 
     return {
@@ -79,12 +85,17 @@ export class MemoryRepository {
       createdAt: new Date(row.created_at as number),
       updatedAt: new Date(row.updated_at as number),
       supersededBy: row.superseded_by as string | null,
+      usefulness: (row.usefulness as number) ?? 0,
+      accessCount: (row.access_count as number) ?? 0,
+      lastAccessed: row.last_accessed
+        ? new Date(row.last_accessed as number)
+        : null,
     };
   }
 
   async markDeleted(id: string): Promise<boolean> {
     const table = await this.getTable();
-    
+
     // Verify existence first to match previous behavior (return false if not found)
     const existing = await table.query().where(`id = '${id}'`).limit(1).toArray();
     if (existing.length === 0) {
