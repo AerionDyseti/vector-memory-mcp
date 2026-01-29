@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Hybrid search**: Combined vector + full-text search with RRF (Reciprocal Rank Fusion) for better retrieval
+- **Intent-based search**: 5 search intents (`continuity`, `fact_check`, `frequent`, `associative`, `explore`) with tuned weight profiles
+- **Multi-signal scoring**: Relevance, recency (exponential decay), and utility (votes + access count) signals
+- **Score jitter**: Controlled randomness for noise-robust RAG (prevents retrieval getting "stuck in a rut")
+- **Mandatory search triggers**: Tool description now specifies when LLMs MUST search memory
+- **`reason_for_search` parameter**: Forces intentional retrieval by requiring justification
+
+### Changed
+- **Search is now read-only**: Access stats only update on explicit utilization (`vote`, `get`, `storeHandoff`)
+- **New memories get fair discovery**: `lastAccessed` initialized to creation time for recency scoring
+- **`vote()` tracks access**: Voting now also increments access count as explicit utilization signal
+- **`storeHandoff()` tracks utilized memories**: Memories referenced in handoff get access credit
+
+### Removed
+- `VectorRow` type (replaced by `HybridRow`)
+- `findSimilar()` repository method (replaced by `findHybrid()`)
+- Old `calculateScore()` method (replaced by intent-based scoring pipeline)
+
 ## [0.8.0] - 2026-01-06
 
 ### Added
