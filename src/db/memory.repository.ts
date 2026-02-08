@@ -12,15 +12,62 @@ export class MemoryRepository {
   // Once set, this promise is never cleared (FTS index persists in the database)
   private ftsIndexPromise: Promise<void> | null = null;
 
+  // Mutex for schema migration - runs once per instance to add missing columns
+  private migrationPromise: Promise<void> | null = null;
+
   constructor(private db: lancedb.Connection) { }
 
   private async getTable() {
     const names = await this.db.tableNames();
     if (names.includes(TABLE_NAME)) {
-      return await this.db.openTable(TABLE_NAME);
+      const table = await this.db.openTable(TABLE_NAME);
+      await this.ensureMigration(table);
+      return table;
     }
     // Create with empty data to initialize schema
     return await this.db.createTable(TABLE_NAME, [], { schema: memorySchema });
+  }
+
+  /**
+   * Ensures schema migration has run. Uses a mutex pattern identical to ensureFtsIndex.
+   * Adds columns introduced after the initial schema (usefulness, access_count, last_accessed).
+   */
+  private ensureMigration(table: Table): Promise<void> {
+    if (this.migrationPromise) {
+      return this.migrationPromise;
+    }
+
+    this.migrationPromise = this.migrateSchemaIfNeeded(table).catch((error) => {
+      this.migrationPromise = null;
+      throw error;
+    });
+
+    return this.migrationPromise;
+  }
+
+  /**
+   * Inspects the existing table schema and adds any missing columns with safe defaults.
+   * This handles databases created before the hybrid memory system was introduced.
+   */
+  private async migrateSchemaIfNeeded(table: Table): Promise<void> {
+    const schema = await table.schema();
+    const existingFields = new Set(schema.fields.map((f) => f.name));
+
+    const migrations: { name: string; valueSql: string }[] = [];
+
+    if (!existingFields.has("usefulness")) {
+      migrations.push({ name: "usefulness", valueSql: "cast(0.0 as float)" });
+    }
+    if (!existingFields.has("access_count")) {
+      migrations.push({ name: "access_count", valueSql: "cast(0 as int)" });
+    }
+    if (!existingFields.has("last_accessed")) {
+      migrations.push({ name: "last_accessed", valueSql: "cast(NULL as timestamp)" });
+    }
+
+    if (migrations.length > 0) {
+      await table.addColumns(migrations);
+    }
   }
 
   /**
