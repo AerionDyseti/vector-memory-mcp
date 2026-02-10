@@ -8,7 +8,7 @@ Prepare and trigger an npm publish via GitHub Actions.
 
 Ask the user: **"Dev release or stable release?"**
 
-- **dev**: Increment prerelease version (e.g., `0.9.0-dev.5` → `0.9.0-dev.6`)
+- **dev**: Dev prerelease based on current stable version (e.g., `1.0.1` → `1.0.1-dev.1`, then `1.0.1-dev.2`)
 - **release**: Full semver bump based on commits (patch/minor/major)
 
 ---
@@ -18,18 +18,40 @@ Ask the user: **"Dev release or stable release?"**
 ### D1. Pre-flight
 
 ```bash
-git status --short
-git fetch origin && git status -sb
+git branch --show-current   # Must be dev
+git status --short           # Must be clean
+git fetch origin && git status -sb  # Must be up to date
 grep '"version"' package.json
 ```
 
-Must be clean and up to date. If not, stop and fix.
+Must be on `dev` branch, clean, and up to date. If not, stop and fix first.
 
 ### D2. Bump Dev Version
 
-```bash
-npm version prerelease --preid=dev --no-git-tag-version
-```
+Determine the next dev version based on the **current stable version**, not the next one.
+
+1. Get the current stable base version (strip any existing `-dev.N` suffix):
+   ```bash
+   CURRENT=$(grep '"version"' package.json | cut -d'"' -f4)
+   BASE=$(echo "$CURRENT" | sed 's/-dev\.[0-9]*//')
+   ```
+
+2. Find the latest dev tag for this base version and increment:
+   ```bash
+   LAST_DEV=$(git tag --list "v${BASE}-dev.*" --sort=-version:refname | head -1)
+   if [ -z "$LAST_DEV" ]; then
+     NEXT_NUM=1
+   else
+     LAST_NUM=$(echo "$LAST_DEV" | grep -o '[0-9]*$')
+     NEXT_NUM=$((LAST_NUM + 1))
+   fi
+   NEW_VERSION="${BASE}-dev.${NEXT_NUM}"
+   ```
+
+3. Set the version:
+   ```bash
+   npm version "$NEW_VERSION" --no-git-tag-version
+   ```
 
 ### D3. Commit and Tag
 
@@ -43,7 +65,7 @@ git tag "v$VERSION"
 ### D4. Push (triggers GHA)
 
 ```bash
-git push && git push --tags
+git push origin dev && git push --tags
 ```
 
 ### D5. Report
