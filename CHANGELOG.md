@@ -16,10 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`reason_for_search` parameter**: Forces intentional retrieval by requiring justification
 
 ### Changed
-- **Search is now read-only**: Access stats only update on explicit utilization (`vote`, `get`, `storeHandoff`)
+- **Search is now read-only**: Access stats only update on explicit utilization (`vote`, `get`, `storeCheckpoint`)
 - **New memories get fair discovery**: `lastAccessed` initialized to creation time for recency scoring
 - **`vote()` tracks access**: Voting now also increments access count as explicit utilization signal
-- **`storeHandoff()` tracks utilized memories**: Memories referenced in handoff get access credit
+- **`storeCheckpoint()` tracks utilized memories**: Memories referenced in checkpoint get access credit
 
 ### Removed
 - `VectorRow` type (replaced by `HybridRow`)
@@ -30,8 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Batch memory operations**: `store_memories`, `update_memories`, `delete_memories`, `get_memories` now accept arrays
-- **Handoff system**: `store_handoff` and `get_handoff` for session continuity
-- **Session-start hook**: `hooks/session-start.ts` for automatic handoff loading
+- **Checkpoint system**: `store_checkpoint` and `get_checkpoint` for session continuity
+- **Session-start hook**: `hooks/session-start.ts` for automatic checkpoint loading
 - **HTTP/SSE transport**: Connect via HTTP for Claude Desktop integration
 - **Graceful shutdown**: Proper cleanup on SIGTERM, SIGINT, stdin close
 - **Publish tooling**: `/publish` slash command and `scripts/publish.ts`

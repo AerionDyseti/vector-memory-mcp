@@ -187,12 +187,12 @@ private async trackAccess(ids: string[]): Promise<void> {
 }
 ```
 
-Update `storeHandoff()` to call `trackAccess(args.memory_ids)` when memory_ids provided.
+Update `storeCheckpoint()` to call `trackAccess(args.memory_ids)` when memory_ids provided.
 
 | Trigger | What Updates |
 |---------|--------------|
 | `vote()` | `lastAccessed`, `accessCount++`, `usefulness ± 1` |
-| `storeHandoff(memory_ids)` | `lastAccessed`, `accessCount++` for each ID |
+| `storeCheckpoint(memory_ids)` | `lastAccessed`, `accessCount++` for each ID |
 | `get()` | `lastAccessed`, `accessCount++` |
 
 ### `src/mcp/tools.ts`

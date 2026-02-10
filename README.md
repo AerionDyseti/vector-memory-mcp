@@ -14,7 +14,7 @@ A local-first MCP server that provides vector-based memory storage. Uses local e
 - **Local & Private** - All embeddings generated locally, data stored in local LanceDB
 - **Semantic Search** - Vector similarity search with configurable scoring
 - **Batch Operations** - Store, update, delete, and retrieve multiple memories at once
-- **Session Handoffs** - Save and restore project context between sessions
+- **Session Checkpoints** - Save and restore project context between sessions
 - **MCP Native** - Standard protocol, works with any MCP-compatible client
 
 ---
@@ -61,8 +61,8 @@ Restart your MCP client. You now have access to:
 | `get_memories` | Retrieve memories by ID (accepts array) |
 | `update_memories` | Update existing memories |
 | `delete_memories` | Remove memories (accepts array) |
-| `store_handoff` | Save session context for later |
-| `get_handoff` | Restore session context |
+| `store_checkpoint` | Save session context for later |
+| `get_checkpoint` | Restore session context |
 
 ---
 
@@ -80,10 +80,10 @@ You: "What did we decide about the database?"
 Assistant: [calls search_memories with relevant query]
 ```
 
-**Session handoffs:**
+**Session checkpoints:**
 ```
 You: "Save context for next session"
-Assistant: [calls store_handoff with summary, completed items, next steps]
+Assistant: [calls store_checkpoint with summary, completed items, next steps]
 ```
 
 ---

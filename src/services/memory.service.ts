@@ -186,7 +186,7 @@ export class MemoryService {
   private static readonly UUID_ZERO =
     "00000000-0000-0000-0000-000000000000";
 
-  async storeHandoff(args: {
+  async storeCheckpoint(args: {
     project: string;
     branch?: string;
     summary: string;
@@ -213,7 +213,7 @@ export class MemoryService {
       return items.map((i) => `- ${i}`).join("\n");
     };
 
-    const content = `# Handoff - ${args.project}
+    const content = `# Checkpoint - ${args.project}
 **Date:** ${date} ${time} | **Branch:** ${args.branch ?? "unknown"}
 
 ## Summary
@@ -236,7 +236,7 @@ ${list(args.memory_ids)}`;
 
     const metadata: Record<string, unknown> = {
       ...(args.metadata ?? {}),
-      type: "handoff",
+      type: "checkpoint",
       project: args.project,
       date,
       branch: args.branch ?? "unknown",
@@ -260,7 +260,7 @@ ${list(args.memory_ids)}`;
     return memory;
   }
 
-  async getLatestHandoff(): Promise<Memory | null> {
+  async getLatestCheckpoint(): Promise<Memory | null> {
     return await this.get(MemoryService.UUID_ZERO);
   }
 }

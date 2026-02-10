@@ -11,8 +11,8 @@ import {
   handleDeleteMemories,
   handleSearchMemories,
   handleGetMemories,
-  handleStoreHandoff,
-  handleGetHandoff,
+  handleStoreCheckpoint,
+  handleGetCheckpoint,
 } from "../src/mcp/handlers";
 import { createServer } from "../src/mcp/server";
 import { connectToDatabase } from "../src/db/connection";
@@ -74,13 +74,13 @@ describe("mcp", () => {
       expect(tool!.inputSchema.required).toContain("ids");
     });
 
-    test("has store_handoff tool", () => {
-      const tool = tools.find((t) => t.name === "store_handoff");
+    test("has store_checkpoint tool", () => {
+      const tool = tools.find((t) => t.name === "store_checkpoint");
       expect(tool).toBeDefined();
     });
 
-    test("has get_handoff tool", () => {
-      const tool = tools.find((t) => t.name === "get_handoff");
+    test("has get_checkpoint tool", () => {
+      const tool = tools.find((t) => t.name === "get_checkpoint");
       expect(tool).toBeDefined();
     });
   });
@@ -325,9 +325,9 @@ describe("mcp", () => {
     });
   });
 
-  describe("handoff handlers", () => {
-    test("store_handoff and get_handoff work", async () => {
-      await handleStoreHandoff(
+  describe("checkpoint handlers", () => {
+    test("store_checkpoint and get_checkpoint work", async () => {
+      await handleStoreCheckpoint(
         {
           project: "Resonance",
           branch: "main",
@@ -340,8 +340,8 @@ describe("mcp", () => {
         },
         service
       );
-      const response = await handleGetHandoff({}, service);
-      expect(response.content[0].text).toContain("# Handoff - Resonance");
+      const response = await handleGetCheckpoint({}, service);
+      expect(response.content[0].text).toContain("# Checkpoint - Resonance");
       expect(response.content[0].text).toContain("## Memory IDs");
     });
   });
@@ -396,16 +396,16 @@ describe("mcp", () => {
       expect(response.content[0].text).toContain(mem.id);
     });
 
-    test("routes to store_handoff and get_handoff", async () => {
+    test("routes to store_checkpoint and get_checkpoint", async () => {
       const storeRes = await handleToolCall(
-        "store_handoff",
+        "store_checkpoint",
         { project: "Resonance", summary: "Summary" },
         service
       );
-      expect(storeRes.content[0].text).toContain("Handoff stored");
+      expect(storeRes.content[0].text).toContain("Checkpoint stored");
 
-      const getRes = await handleToolCall("get_handoff", {}, service);
-      expect(getRes.content[0].text).toContain("# Handoff - Resonance");
+      const getRes = await handleToolCall("get_checkpoint", {}, service);
+      expect(getRes.content[0].text).toContain("# Checkpoint - Resonance");
     });
 
     test("returns error for unknown tool", async () => {

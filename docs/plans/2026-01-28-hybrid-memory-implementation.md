@@ -623,14 +623,14 @@ export class MemoryService {
     }
   }
 
-  // ... storeHandoff and getLatestHandoff methods remain the same
-  // But update storeHandoff to call trackAccess
+  // ... storeCheckpoint and getLatestCheckpoint methods remain the same
+  // But update storeCheckpoint to call trackAccess
 ```
 
-Update `storeHandoff` to track access:
+Update `storeCheckpoint` to track access:
 
 ```typescript
-  async storeHandoff(args: {
+  async storeCheckpoint(args: {
     project: string;
     branch?: string;
     summary: string;
@@ -646,7 +646,7 @@ Update `storeHandoff` to track access:
       await this.trackAccess(args.memory_ids);
     }
 
-    // ... rest of existing storeHandoff implementation
+    // ... rest of existing storeCheckpoint implementation
 ```
 
 **Step 3.4: Run scoring tests**
@@ -769,14 +769,14 @@ describe("MemoryService - Access Tracking", () => {
     expect(after2!.accessCount).toBe(1);
   });
 
-  test("storeHandoff tracks access for memory_ids", async () => {
+  test("storeCheckpoint tracks access for memory_ids", async () => {
     const mem1 = await service.store("decision about API design");
     const mem2 = await service.store("architecture notes");
 
     await new Promise((r) => setTimeout(r, 10));
-    await service.storeHandoff({
+    await service.storeCheckpoint({
       project: "test-project",
-      summary: "Test handoff",
+      summary: "Test checkpoint",
       memory_ids: [mem1.id, mem2.id],
     });
 
@@ -803,7 +803,7 @@ git commit -m "test: update access tracking tests for read-only search
 - Search no longer increments access (prevents inflation)
 - Vote now tracks access (explicit utilization)
 - trackAccess method tested
-- storeHandoff tracks utilized memory_ids"
+- storeCheckpoint tracks utilized memory_ids"
 ```
 
 ---

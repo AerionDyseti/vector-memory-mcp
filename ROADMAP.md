@@ -4,9 +4,9 @@ Current version: **0.8.0**
 
 ## Completed
 
-### v0.8.0 - Batch Operations & Handoffs
+### v0.8.0 - Batch Operations & Checkpoints
 - Batch memory operations (store/update/delete/get multiple)
-- Handoff system for session continuity
+- Checkpoint system for session continuity
 - Session-start hook for automatic context loading
 - HTTP/SSE transport for Claude Desktop
 - Graceful shutdown handling

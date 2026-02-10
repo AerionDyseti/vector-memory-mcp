@@ -3,7 +3,7 @@
  * SessionStart hook for Claude Code
  *
  * Fetches config from the running vector-memory server's /health endpoint,
- * then retrieves and outputs the latest handoff.
+ * then retrieves and outputs the latest checkpoint.
  *
  * Requires the server to be running with HTTP enabled.
  *
@@ -67,15 +67,15 @@ async function main() {
   const embeddings = new EmbeddingsService(embeddingModel, embeddingDimension);
   const service = new MemoryService(repository, embeddings);
 
-  const handoff = await service.getLatestHandoff();
+  const checkpoint = await service.getLatestCheckpoint();
 
-  if (!handoff) {
-    console.log("No handoff found. Starting fresh session.");
+  if (!checkpoint) {
+    console.log("No checkpoint found. Starting fresh session.");
     return;
   }
 
   // Fetch referenced memories if any
-  const memoryIds = (handoff.metadata.memory_ids as string[] | undefined) ?? [];
+  const memoryIds = (checkpoint.metadata.memory_ids as string[] | undefined) ?? [];
   let memoriesSection = "";
 
   if (memoryIds.length > 0) {
@@ -91,10 +91,10 @@ async function main() {
     }
   }
 
-  console.log(handoff.content + memoriesSection);
+  console.log(checkpoint.content + memoriesSection);
 }
 
 main().catch((err) => {
-  console.error("Error loading handoff:", err.message);
+  console.error("Error loading checkpoint:", err.message);
   process.exit(1);
 });

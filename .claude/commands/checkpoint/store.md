@@ -2,7 +2,7 @@
 description: Save session context to vector memory for seamless resumption (project)
 ---
 
-Create a comprehensive handoff snapshot using vector-memory-mcp.
+Create a comprehensive checkpoint snapshot using vector-memory-mcp.
 
 ## 1. Extract & Store Memories
 
@@ -22,9 +22,9 @@ Review the session for significant items worth persisting long-term.
 
 For each significant item, call `mcp__vector-memory-project__store_memories` with appropriate metadata tags.
 
-## 2. Store Handoff
+## 2. Store Checkpoint
 
-Call `mcp__vector-memory-project__store_handoff` with:
+Call `mcp__vector-memory-project__store_checkpoint` with:
 
 ```
 project: [repository/project name]
@@ -55,11 +55,11 @@ memory_ids:
 
 **Only if** the MCP tools fail (connection refused, timeout, tool not found):
 
-1. Write handoff to `handoff.md` in the repository root
+1. Write checkpoint to `checkpoint.md` in the repository root
 2. Use this markdown format:
 
 ```markdown
-# Handoff - [project]
+# Checkpoint - [project]
 **Date:** [ISO date] | **Branch:** [branch]
 
 ## Summary
@@ -88,9 +88,9 @@ Summarize what was stored:
 - Storage method used (MCP or file fallback)
 - Number of memories created (if MCP available)
 - Key topics captured
-- Handoff stored confirmation
+- Checkpoint stored confirmation
 
-If fallback was used, warn: "MCP unavailable - handoff saved to `handoff.md`. Check your MCP configuration."
+If fallback was used, warn: "MCP unavailable - checkpoint saved to `checkpoint.md`. Check your MCP configuration."
 
 ## Guidelines
 

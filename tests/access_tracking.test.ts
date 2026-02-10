@@ -87,14 +87,14 @@ describe("MemoryService - Access Tracking", () => {
     expect(after2!.accessCount).toBe(1);
   });
 
-  test("storeHandoff tracks access for memory_ids", async () => {
+  test("storeCheckpoint tracks access for memory_ids", async () => {
     const mem1 = await service.store("decision about API design");
     const mem2 = await service.store("architecture notes");
 
     await new Promise((r) => setTimeout(r, 10));
-    await service.storeHandoff({
+    await service.storeCheckpoint({
       project: "test-project",
-      summary: "Test handoff",
+      summary: "Test checkpoint",
       memory_ids: [mem1.id, mem2.id],
     });
 

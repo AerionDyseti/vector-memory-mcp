@@ -193,11 +193,11 @@ export async function handleReportMemoryUsefulness(
   };
 }
 
-export async function handleStoreHandoff(
+export async function handleStoreCheckpoint(
   args: Record<string, unknown> | undefined,
   service: MemoryService
 ): Promise<CallToolResult> {
-  const memory = await service.storeHandoff({
+  const memory = await service.storeCheckpoint({
     project: args?.project as string,
     branch: args?.branch as string | undefined,
     summary: args?.summary as string,
@@ -210,24 +210,24 @@ export async function handleStoreHandoff(
   });
 
   return {
-    content: [{ type: "text", text: `Handoff stored with memory ID: ${memory.id}` }],
+    content: [{ type: "text", text: `Checkpoint stored with memory ID: ${memory.id}` }],
   };
 }
 
-export async function handleGetHandoff(
+export async function handleGetCheckpoint(
   _args: Record<string, unknown> | undefined,
   service: MemoryService
 ): Promise<CallToolResult> {
-  const handoff = await service.getLatestHandoff();
+  const checkpoint = await service.getLatestCheckpoint();
 
-  if (!handoff) {
+  if (!checkpoint) {
     return {
-      content: [{ type: "text", text: "No stored handoff found." }],
+      content: [{ type: "text", text: "No stored checkpoint found." }],
     };
   }
 
   // Fetch referenced memories if any
-  const memoryIds = (handoff.metadata.memory_ids as string[] | undefined) ?? [];
+  const memoryIds = (checkpoint.metadata.memory_ids as string[] | undefined) ?? [];
   let memoriesSection = "";
 
   if (memoryIds.length > 0) {
@@ -244,7 +244,7 @@ export async function handleGetHandoff(
   }
 
   return {
-    content: [{ type: "text", text: handoff.content + memoriesSection }],
+    content: [{ type: "text", text: checkpoint.content + memoriesSection }],
   };
 }
 
@@ -266,10 +266,10 @@ export async function handleToolCall(
       return handleGetMemories(args, service);
     case "report_memory_usefulness":
       return handleReportMemoryUsefulness(args, service);
-    case "store_handoff":
-      return handleStoreHandoff(args, service);
-    case "get_handoff":
-      return handleGetHandoff(args, service);
+    case "store_checkpoint":
+      return handleStoreCheckpoint(args, service);
+    case "get_checkpoint":
+      return handleGetCheckpoint(args, service);
     default:
       return {
         content: [{ type: "text", text: `Unknown tool: ${name}` }],

@@ -208,8 +208,8 @@ export const reportMemoryUsefulnessTool: Tool = {
   },
 };
 
-export const storeHandoffTool: Tool = {
-  name: "store_handoff",
+export const storeCheckpointTool: Tool = {
+  name: "store_checkpoint",
   description: `Save session state for seamless resumption later. Use at end of work sessions or before context switches.
 
 Creates a structured snapshot with:
@@ -220,7 +220,7 @@ Creates a structured snapshot with:
 - next_steps: concrete, actionable items
 - memory_ids: link to related memories stored this session
 
-Retrievable via get_handoff. Only one handoff per project—new handoffs overwrite previous.`,
+Retrievable via get_checkpoint. Only one checkpoint per project—new checkpoints overwrite previous.`,
   inputSchema: {
     type: "object",
     properties: {
@@ -250,7 +250,7 @@ Retrievable via get_handoff. Only one handoff per project—new handoffs overwri
       memory_ids: {
         type: "array",
         items: { type: "string" },
-        description: "Memory IDs referenced by this handoff.",
+        description: "Memory IDs referenced by this checkpoint.",
       },
       metadata: {
         type: "object",
@@ -262,10 +262,10 @@ Retrievable via get_handoff. Only one handoff per project—new handoffs overwri
   },
 };
 
-export const getHandoffTool: Tool = {
-  name: "get_handoff",
+export const getCheckpointTool: Tool = {
+  name: "get_checkpoint",
   description:
-    "Load the current project handoff snapshot. Call at conversation start or when resuming a project.",
+    "Load the current project checkpoint snapshot. Call at conversation start or when resuming a project.",
   inputSchema: {
     type: "object",
     properties: {},
@@ -279,6 +279,6 @@ export const tools: Tool[] = [
   searchMemoriesTool,
   getMemoriesTool,
   reportMemoryUsefulnessTool,
-  storeHandoffTool,
-  getHandoffTool,
+  storeCheckpointTool,
+  getCheckpointTool,
 ];

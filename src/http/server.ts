@@ -161,17 +161,17 @@ export function createHttpApp(memoryService: MemoryService, config: Config): Hon
     }
   });
 
-  // Get latest handoff
-  app.get("/handoff", async (c) => {
+  // Get latest checkpoint
+  app.get("/checkpoint", async (c) => {
     try {
-      const handoff = await memoryService.getLatestHandoff();
+      const checkpoint = await memoryService.getLatestCheckpoint();
 
-      if (!handoff) {
-        return c.json({ error: "No handoff found" }, 404);
+      if (!checkpoint) {
+        return c.json({ error: "No checkpoint found" }, 404);
       }
 
       // Fetch referenced memories if any
-      const memoryIds = (handoff.metadata.memory_ids as string[] | undefined) ?? [];
+      const memoryIds = (checkpoint.metadata.memory_ids as string[] | undefined) ?? [];
       const referencedMemories: Array<{ id: string; content: string }> = [];
 
       for (const id of memoryIds) {
@@ -182,10 +182,10 @@ export function createHttpApp(memoryService: MemoryService, config: Config): Hon
       }
 
       return c.json({
-        content: handoff.content,
-        metadata: handoff.metadata,
+        content: checkpoint.content,
+        metadata: checkpoint.metadata,
         referencedMemories,
-        updatedAt: handoff.updatedAt.toISOString(),
+        updatedAt: checkpoint.updatedAt.toISOString(),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
