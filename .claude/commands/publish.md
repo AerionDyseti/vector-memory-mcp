@@ -65,26 +65,28 @@ Monitor: https://github.com/AerionDyseti/vector-memory-mcp/actions
 
 ## Release Flow
 
+Stable releases go through a PR from `dev` → `main`. Main is protected — no direct pushes.
+
 ### R1. Pre-flight
 
 ```bash
-git branch --show-current   # Must be main
+git branch --show-current   # Must be dev
 git status --short          # Must be clean
 git fetch origin && git status -sb  # Must be up to date
 ```
 
-If not on main, not clean, or behind origin: stop and fix first.
+Must be on `dev` branch, clean, and up to date. If not, stop and fix first.
 
 ### R2. Analyze Commits
 
 ```bash
-# Current version
-grep '"version"' package.json
+# Current version on main
+git show origin/main:package.json | grep '"version"'
 
 # Last stable tag
 git tag --list 'v*' --sort=-version:refname | grep -v dev | head -1
 
-# Commits since last stable release
+# Commits on dev since last stable release
 LAST_TAG=$(git tag --list 'v*' --sort=-version:refname | grep -v dev | head -1)
 git log ${LAST_TAG}..HEAD --oneline
 ```
@@ -109,9 +111,9 @@ Present:
 
 Ask: "Release vX.Y.Z? (yes/no)"
 
-### R5. Update CHANGELOG.md
+### R5. Prepare Release Commit
 
-Add a new section at the top:
+Update CHANGELOG and bump version on `dev`:
 
 ```markdown
 ## [X.Y.Z] - YYYY-MM-DD
@@ -126,30 +128,48 @@ Add a new section at the top:
 - [bug fixes]
 ```
 
-### R6. Bump, Commit, Tag
-
 ```bash
 npm version X.Y.Z --no-git-tag-version
 git add CHANGELOG.md package.json
 git commit -m "chore: release vX.Y.Z"
-git tag vX.Y.Z
+git push origin dev
 ```
 
-### R7. Push (triggers GHA)
+### R6. Create PR (dev → main)
 
 ```bash
-git push && git push --tags
+gh pr create --base main --head dev \
+  --title "Release vX.Y.Z" \
+  --body "$(cat <<'PREOF'
+## Release vX.Y.Z
+
+[Summary of changes from CHANGELOG]
+PREOF
+)"
 ```
 
-**Note**: The GitHub Actions workflow will automatically:
-1. Publish to npm with `@latest` tag
-2. Extract CHANGELOG content for this version
-3. Create a GitHub Release with the changelog as release notes
+### R7. Merge PR and Tag
+
+After PR is merged:
+
+```bash
+git checkout main && git pull origin main
+git tag vX.Y.Z
+git push --tags
+```
+
+Then reset dev to main and tag dev.0:
+
+```bash
+git checkout dev && git reset --hard main
+git tag "vX.Y.Z-dev.0"
+git push origin dev --force && git push --tags
+```
 
 ### R8. Report
 
 ```
-✅ Pushed vX.Y.Z
+✅ Released vX.Y.Z via PR merge
 ⏳ GitHub Actions workflow triggered - will:
    - Publish to npm @latest
    - Create GitHub Release automatically
