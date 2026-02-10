@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-02-09
+
+### Breaking Changes
+- **API rename**: All `handoff` terminology renamed to `checkpoint` throughout the codebase
+  - MCP tools: `store_handoff` → `store_checkpoint`, `get_handoff` → `get_checkpoint`
+  - Functions: `storeHandoff()` → `storeCheckpoint()`, `getLatestHandoff()` → `getLatestCheckpoint()`
+  - HTTP route: `/handoff` → `/checkpoint`
+  - Commands: `.claude/commands/handoff/` → `.claude/commands/checkpoint/`
+  - Metadata type field: `"handoff"` → `"checkpoint"`
+  - **Migration note**: Existing checkpoint data (stored at UUID zero) remains compatible, but client code using old tool names must be updated
+
 ### Added
 - **Hybrid search**: Combined vector + full-text search with RRF (Reciprocal Rank Fusion) for better retrieval
 - **Intent-based search**: 5 search intents (`continuity`, `fact_check`, `frequent`, `associative`, `explore`) with tuned weight profiles
@@ -14,12 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Score jitter**: Controlled randomness for noise-robust RAG (prevents retrieval getting "stuck in a rut")
 - **Mandatory search triggers**: Tool description now specifies when LLMs MUST search memory
 - **`reason_for_search` parameter**: Forces intentional retrieval by requiring justification
+- **Node.js compatibility**: Support for Node.js environments in addition to Bun
 
 ### Changed
 - **Search is now read-only**: Access stats only update on explicit utilization (`vote`, `get`, `storeCheckpoint`)
 - **New memories get fair discovery**: `lastAccessed` initialized to creation time for recency scoring
 - **`vote()` tracks access**: Voting now also increments access count as explicit utilization signal
 - **`storeCheckpoint()` tracks utilized memories**: Memories referenced in checkpoint get access credit
+
+### Fixed
+- **LanceDB schema migration**: Auto-migrate pre-hybrid databases to new schema format
+- **CI workflow improvements**: Better handling of E2E tests and environment detection
+- **npm publishing**: Configured GitHub Actions OIDC trusted publishing
 
 ### Removed
 - `VectorRow` type (replaced by `HybridRow`)
