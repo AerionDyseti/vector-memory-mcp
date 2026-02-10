@@ -133,9 +133,31 @@ git tag vX.Y.Z
 git push && git push --tags
 ```
 
-### R8. Report
+### R8. Create GitHub Release
+
+Extract the changelog content for this version and create a GitHub Release:
+
+```bash
+# Extract changelog section for this version (between current version header and next version header)
+# Then create the release with gh CLI
+gh release create vX.Y.Z \
+  --title "vX.Y.Z - [Brief Description]" \
+  --notes "[Changelog content for this version]"
+```
+
+**Note**: Include the full changelog section with:
+- Breaking Changes (if major version)
+- Added features
+- Changed items
+- Fixed issues
+- Removed items
+- Installation instructions
+- Link to full changelog comparison
+
+### R9. Report
 
 ```
 Pushed vX.Y.Z - GitHub Actions will publish to npm @latest
+GitHub Release created: https://github.com/AerionDyseti/vector-memory-mcp/releases/tag/vX.Y.Z
 Monitor: https://github.com/AerionDyseti/vector-memory-mcp/actions
 ```
