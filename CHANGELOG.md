@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-02-10
+
+### Changed
+- **Dev publish flow**: Dev versions now tag existing commits instead of creating version bump commits. GHA sets package.json version from the git tag at build time.
+- **Branch conventions**: Dev releases require `dev` branch, stable releases require `main`
+- **Dev version scheme**: Dev tags derive from current stable version (`1.0.1-dev.N`), with `dev.0` indicating same commit as the stable release
+
+### Fixed
+- CI workflow now runs on `dev` branch pushes and PRs
+
 ## [1.0.1] - 2026-02-09
 
 ### Changed
