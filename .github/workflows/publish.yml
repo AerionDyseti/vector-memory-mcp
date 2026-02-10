@@ -19,7 +19,7 @@ on:
 
 permissions:
   id-token: write   # Required for OIDC trusted publishing
-  contents: read
+  contents: write   # Required to create releases
 
 jobs:
   publish:
@@ -68,3 +68,30 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --access public --tag ${{ steps.npm-tag.outputs.tag }}
+
+      - name: Extract changelog for this version
+        if: steps.npm-tag.outputs.tag == 'latest'
+        id: changelog
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION_NUMBER="${VERSION#v}"
+
+          # Extract changelog section between this version and the next
+          CHANGELOG=$(awk "/^## \[$VERSION_NUMBER\]/,/^## \[/" CHANGELOG.md | sed '$d' | tail -n +2)
+
+          # Use multiline output
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        if: steps.npm-tag.outputs.tag == 'latest'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+
+          gh release create "$VERSION" \
+            --title "$VERSION" \
+            --notes "${{ steps.changelog.outputs.notes }}" \
+            --verify-tag
