@@ -90,13 +90,39 @@ Assistant: [calls store_checkpoint with summary, completed items, next steps]
 
 ## Configuration
 
-Environment variables:
+Configuration is resolved in order: **CLI flags > environment variables > defaults**.
+
+### CLI Flags
+
+| Flag | Alias | Default | Description |
+|------|-------|---------|-------------|
+| `--db-file <path>` | `-d` | `.vector-memory/memories.db` | Database location (relative to cwd) |
+| `--port <number>` | `-p` | `3271` | HTTP server port |
+| `--no-http` | | | Disable the HTTP server |
+
+### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `VECTOR_MEMORY_DB_PATH` | `.vector-memory/memories.db` | Database location |
-| `VECTOR_MEMORY_MODEL` | `Xenova/all-MiniLM-L6-v2` | Embedding model |
 | `VECTOR_MEMORY_HTTP_PORT` | `3271` | HTTP server port |
+
+Environment variables are useful in MCP client configs where you can't pass CLI flags directly:
+
+```json
+{
+  "mcpServers": {
+    "vector-memory": {
+      "type": "stdio",
+      "command": "bunx",
+      "args": ["--bun", "@aeriondyseti/vector-memory-mcp"],
+      "env": {
+        "VECTOR_MEMORY_DB_PATH": "/home/user/.local/share/vector-memory-mcp/memories.db"
+      }
+    }
+  }
+}
+```
 
 ---
 

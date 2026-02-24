@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-02-24
+
+### Added
+- **Environment variable configuration**: `VECTOR_MEMORY_DB_PATH` and `VECTOR_MEMORY_HTTP_PORT` env vars now work as documented, falling back between CLI flags → env vars → defaults
+
+### Changed
+- **README rewritten**: Configuration section now accurately documents CLI flags (`--db-file`, `--port`, `--no-http`), environment variables, precedence order, and includes an example MCP config with env vars
+- Removed undocumented `VECTOR_MEMORY_MODEL` env var from README (embedding model is not user-configurable)
+
 ## [1.0.2] - 2026-02-10
 
 ### Changed
