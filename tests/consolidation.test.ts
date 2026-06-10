@@ -363,4 +363,84 @@ describe("consolidation", () => {
     expect(row.project).toBe(repo.repoPath);
     target.close();
   });
+
+  test("re-embeds memories when the source vec table is unreadable", async () => {
+    const repo = makeRepoDb(tmpDir, "repo-novec");
+    await repo.repository.insert(makeMemory("m1", "vectorless memory"));
+    repo.close();
+
+    // Simulate a legacy vec0-era source: the vector table can't be read
+    const sourceDb = connectToDatabase(repo.dbPath);
+    sourceDb.exec("DROP TABLE memories_vec");
+    sourceDb.close();
+
+    const target = connectToDatabase(globalDbPath);
+    const service = new ConsolidationService(
+      target,
+      globalDbPath,
+      createMockEmbeddings(),
+    );
+    const summary = await service.consolidate({
+      root: repo.repoPath,
+      recursive: false,
+      dryRun: false,
+      archive: false,
+      force: true,
+    });
+
+    expect(summary.sources[0].errors).toEqual([]);
+    expect(summary.sources[0].memoriesImported).toBe(1);
+    const vec = target
+      .prepare("SELECT length(vector) AS len FROM memories_vec WHERE id = 'm1'")
+      .get() as { len: number };
+    expect(vec.len).toBe(EMBEDDING_DIM * 4);
+    target.close();
+  });
+
+  test("skips an empty directory at the db path without error", async () => {
+    const dir = join(tmpDir, "repo-empty", ".vector-memory", "memories.db");
+    mkdirSync(dir, { recursive: true });
+
+    const target = connectToDatabase(globalDbPath);
+    const service = new ConsolidationService(
+      target,
+      globalDbPath,
+      createMockEmbeddings(),
+    );
+    const summary = await service.consolidate({
+      root: join(tmpDir, "repo-empty"),
+      recursive: false,
+      dryRun: false,
+      archive: false,
+      force: true,
+    });
+
+    expect(summary.sources[0].errors).toEqual([]);
+    expect(summary.sources[0].memoriesImported).toBe(0);
+    target.close();
+  });
+
+  test("reports an error for a non-LanceDB directory at the db path", async () => {
+    const dir = join(tmpDir, "repo-junk", ".vector-memory", "memories.db");
+    mkdirSync(dir, { recursive: true });
+    await Bun.write(join(dir, "junk.txt"), "not a database");
+
+    const target = connectToDatabase(globalDbPath);
+    const service = new ConsolidationService(
+      target,
+      globalDbPath,
+      createMockEmbeddings(),
+    );
+    const summary = await service.consolidate({
+      root: join(tmpDir, "repo-junk"),
+      recursive: false,
+      dryRun: false,
+      archive: false,
+      force: true,
+    });
+
+    expect(summary.sources[0].errors).toHaveLength(1);
+    expect(summary.sources[0].errors[0]).toContain("not a LanceDB store");
+    target.close();
+  });
 });

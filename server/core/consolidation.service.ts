@@ -1,9 +1,17 @@
 import { Database } from "bun:sqlite";
 import { createHash, randomUUID } from "crypto";
-import { copyFileSync, existsSync, readdirSync, readFileSync, renameSync } from "fs";
+import {
+  copyFileSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+} from "fs";
 import { readFile } from "fs/promises";
 import { homedir } from "os";
-import { dirname, join } from "path";
+import { dirname, join, resolve } from "path";
+import { fileURLToPath } from "url";
 import type { EmbeddingsService } from "./embeddings.service";
 import { normalizeProject } from "./project";
 import { safeParseJsonObject, serializeVector } from "./sqlite-utils";
@@ -56,6 +64,70 @@ interface SourceMemoryRow {
   access_count: number;
   last_accessed: number | null;
   vector: Buffer | null;
+}
+
+interface SourceConversationRow {
+  id: string;
+  content: string;
+  metadata: string;
+  created_at: number;
+  session_id: string;
+  role: string;
+  message_index_start: number;
+  message_index_end: number;
+  project: string;
+  vector: Buffer | null;
+}
+
+/**
+ * LanceDB-era repo stores used `.vector-memory/memories.db` as a *directory*.
+ * Extraction shells out because @lancedb/lancedb's native bindings cannot
+ * coexist with bun:sqlite in one process.
+ */
+function isLanceDir(entries: string[]): boolean {
+  return entries.some(
+    (e) => e.endsWith(".lance") || e === "_versions" || e === "_indices",
+  );
+}
+
+async function extractLanceData(path: string): Promise<{
+  memories: Array<Omit<SourceMemoryRow, "vector"> & { vector: number[] }>;
+  conversations: Array<
+    Omit<SourceConversationRow, "vector"> & { vector: number[] }
+  >;
+}> {
+  const script = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+    "scripts",
+    "lancedb-extract.ts",
+  );
+  if (!existsSync(script)) {
+    throw new Error(`LanceDB extract script not found at ${script}`);
+  }
+  const proc = Bun.spawn([process.execPath, script, path], {
+    stdout: "pipe",
+    stderr: "inherit",
+  });
+  const output = await new Response(proc.stdout).text();
+  const exitCode = await proc.exited;
+  if (exitCode !== 0) {
+    throw new Error(`LanceDB extraction failed (exit code ${exitCode})`);
+  }
+  return JSON.parse(output);
+}
+
+/**
+ * Old schema versions stored vectors in vec0 virtual tables, which need the
+ * sqlite-vec extension to query. Sources are opened read-only without it, so
+ * treat those vectors as unreadable — rows are re-embedded on import.
+ */
+function vecTableReadable(db: Database, name: string): boolean {
+  const row = db
+    .prepare("SELECT sql FROM sqlite_master WHERE name = ?")
+    .get(name) as { sql: string | null } | null;
+  return row != null && !(row.sql ?? "").includes("vec0");
 }
 
 /** Mirrors MemoryService.waypointId — must stay byte-identical. */
@@ -219,6 +291,18 @@ export class ConsolidationService {
       errors: [],
     };
 
+    // LanceDB-era stores are directories, not SQLite files
+    if (statSync(sourceDbPath).isDirectory()) {
+      await this.consolidateLanceSource(
+        sourceDbPath,
+        project,
+        importBatch,
+        options,
+        report,
+      );
+      return report;
+    }
+
     let source: Database;
     try {
       source = new Database(sourceDbPath, { readonly: true });
@@ -242,6 +326,68 @@ export class ConsolidationService {
     return report;
   }
 
+  private async consolidateLanceSource(
+    sourceDbPath: string,
+    project: string,
+    importBatch: string,
+    options: ConsolidationOptions,
+    report: SourceReport,
+  ): Promise<void> {
+    const entries = readdirSync(sourceDbPath);
+    if (entries.length === 0) return; // failed init left an empty dir — nothing to import
+    if (!isLanceDir(entries)) {
+      report.errors.push(
+        `source is a directory but not a LanceDB store: ${sourceDbPath}`,
+      );
+      return;
+    }
+
+    let data: Awaited<ReturnType<typeof extractLanceData>>;
+    try {
+      data = await extractLanceData(sourceDbPath);
+    } catch (e) {
+      report.errors.push(
+        `LanceDB extraction failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      return;
+    }
+
+    const expectedBytes = this.embeddings.dimension * 4;
+    const toBuffer = (vector: number[]): Buffer | null => {
+      const buf = vector.length > 0 ? serializeVector(vector) : null;
+      // Wrong-dimension vectors (model change) are dropped → re-embedded
+      return buf && buf.byteLength === expectedBytes ? buf : null;
+    };
+
+    const memoryRows: SourceMemoryRow[] = data.memories.map((m) => ({
+      ...m,
+      vector: toBuffer(m.vector),
+    }));
+    const conversationRows: SourceConversationRow[] = data.conversations.map(
+      (c) => ({ ...c, vector: toBuffer(c.vector) }),
+    );
+
+    try {
+      await this.processMemoryRows(
+        memoryRows,
+        project,
+        importBatch,
+        options,
+        report,
+      );
+      this.processConversationRows(
+        conversationRows,
+        project,
+        importBatch,
+        options,
+        report,
+      );
+      await this.importIndexState(null, sourceDbPath, project, options, report);
+    } catch (e) {
+      report.errors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   // ── Memories ────────────────────────────────────────────────────────
 
   private async importMemories(
@@ -253,12 +399,25 @@ export class ConsolidationService {
   ): Promise<void> {
     if (!tableExists(source, "memories")) return;
 
-    const rows = source
-      .prepare(
-        `SELECT m.*, v.vector FROM memories m
-         LEFT JOIN memories_vec v ON m.id = v.id`,
-      )
-      .all() as SourceMemoryRow[];
+    const rows = (
+      vecTableReadable(source, "memories_vec")
+        ? source.prepare(
+            `SELECT m.*, v.vector FROM memories m
+             LEFT JOIN memories_vec v ON m.id = v.id`,
+          )
+        : source.prepare("SELECT m.*, NULL AS vector FROM memories m")
+    ).all() as SourceMemoryRow[];
+
+    await this.processMemoryRows(rows, project, importBatch, options, report);
+  }
+
+  private async processMemoryRows(
+    rows: SourceMemoryRow[],
+    project: string,
+    importBatch: string,
+    options: ConsolidationOptions,
+    report: SourceReport,
+  ): Promise<void> {
     if (rows.length === 0) return;
 
     const targetGet = this.target.prepare(
@@ -316,6 +475,12 @@ export class ConsolidationService {
       }
     }
 
+    if (options.dryRun) {
+      report.memoriesImported = toImport.length;
+      this.collectUnresolved(rows, sourceIds, report);
+      return;
+    }
+
     // Pre-compute embeddings for rows whose vectors are missing or have the
     // wrong dimension (model change) — outside any transaction.
     const expectedBytes = this.embeddings.dimension * 4;
@@ -328,12 +493,6 @@ export class ConsolidationService {
     const zeroVector = serializeVector(
       new Array(this.embeddings.dimension).fill(0),
     );
-
-    if (options.dryRun) {
-      report.memoriesImported = toImport.length;
-      this.collectUnresolved(rows, sourceIds, report);
-      return;
-    }
 
     const insertMain = this.target.prepare(
       `INSERT INTO memories (id, content, metadata, created_at, updated_at, superseded_by, usefulness, access_count, last_accessed, project)
@@ -472,23 +631,27 @@ export class ConsolidationService {
   ): void {
     if (!tableExists(source, "conversation_history")) return;
 
-    const rows = source
-      .prepare(
-        `SELECT c.*, v.vector FROM conversation_history c
-         LEFT JOIN conversation_history_vec v ON c.id = v.id`,
-      )
-      .all() as Array<{
-      id: string;
-      content: string;
-      metadata: string;
-      created_at: number;
-      session_id: string;
-      role: string;
-      message_index_start: number;
-      message_index_end: number;
-      project: string;
-      vector: Buffer | null;
-    }>;
+    const rows = (
+      vecTableReadable(source, "conversation_history_vec")
+        ? source.prepare(
+            `SELECT c.*, v.vector FROM conversation_history c
+             LEFT JOIN conversation_history_vec v ON c.id = v.id`,
+          )
+        : source.prepare(
+            "SELECT c.*, NULL AS vector FROM conversation_history c",
+          )
+    ).all() as SourceConversationRow[];
+
+    this.processConversationRows(rows, project, importBatch, options, report);
+  }
+
+  private processConversationRows(
+    rows: SourceConversationRow[],
+    project: string,
+    importBatch: string,
+    options: ConsolidationOptions,
+    report: SourceReport,
+  ): void {
     if (rows.length === 0) return;
 
     const existsStmt = this.target.prepare(
@@ -550,7 +713,7 @@ export class ConsolidationService {
   // ── Conversation index state ────────────────────────────────────────
 
   private async importIndexState(
-    source: Database,
+    source: Database | null,
     sourceDbPath: string,
     project: string,
     options: ConsolidationOptions,
@@ -569,7 +732,7 @@ export class ConsolidationService {
     };
 
     const entries: StateRow[] = [];
-    if (tableExists(source, "conversation_index_state")) {
+    if (source && tableExists(source, "conversation_index_state")) {
       entries.push(
         ...(source
           .prepare("SELECT * FROM conversation_index_state")

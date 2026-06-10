@@ -1,5 +1,16 @@
 import { Database } from "bun:sqlite";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeSync } from "fs";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeSync,
+} from "fs";
 import { dirname } from "path";
 import { removeVec0Tables, runMigrations } from "./migrations";
 
@@ -109,8 +120,47 @@ function guardedVec0Cleanup(dbPath: string): void {
  * entries (never for healthy databases) and is serialized by an exclusive
  * lock; migrations are user_version-gated inside an immediate transaction.
  */
+/**
+ * Legacy LanceDB installs used the db path as a *directory*
+ * (e.g. ~/.vector-memory/memories.db/memories.lance). SQLite needs a file
+ * there, so move the directory aside instead of dying with SQLITE_CANTOPEN.
+ * Returns the path the directory was moved to, or null if nothing was done.
+ */
+export function relocateLegacyLanceDir(dbPath: string): string | null {
+  if (!existsSync(dbPath) || !statSync(dbPath).isDirectory()) return null;
+
+  const entries = readdirSync(dbPath);
+  const isLance = entries.some(
+    (e) => e.endsWith(".lance") || e === "_versions" || e === "_indices",
+  );
+  if (!isLance) {
+    throw new Error(
+      `Database path ${dbPath} is a directory, not a SQLite file. ` +
+        "Move or remove it, or point --db-file at a different location.",
+    );
+  }
+
+  let target = `${dbPath}.lancedb`;
+  for (let n = 1; existsSync(target); n++) {
+    target = `${dbPath}.lancedb.${n}`;
+  }
+  try {
+    renameSync(dbPath, target);
+  } catch (err) {
+    // A concurrently starting process won the rename — nothing left to move.
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+  console.error(
+    `[vector-memory-mcp] Found a legacy LanceDB store at ${dbPath} — ` +
+      `moved it to ${target}. A fresh SQLite database will be created.`,
+  );
+  return target;
+}
+
 export function connectToDatabase(dbPath: string): Database {
   mkdirSync(dirname(dbPath), { recursive: true });
+  relocateLegacyLanceDir(dbPath);
 
   // Remove orphaned vec0 virtual table entries before bun:sqlite opens the
   // database. bun:sqlite cannot modify sqlite_master, so this uses the

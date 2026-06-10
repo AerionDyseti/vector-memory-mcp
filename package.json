@@ -9,6 +9,8 @@
   },
   "files": [
     "server",
+    "scripts/lancedb-extract.ts",
+    "scripts/warmup.ts",
     "README.md",
     "LICENSE"
   ],
