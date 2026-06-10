@@ -1,10 +1,12 @@
 import { randomUUID, createHash } from "crypto";
+import { basename } from "path";
 import type { Memory, SearchIntent, IntentProfile, HybridRow } from "./memory";
 import { isDeleted, computeConfidence } from "./memory";
 import type { SearchResult, SearchOptions, HistoryFilters } from "./conversation";
 import type { MemoryRepository } from "./memory.repository";
 import type { EmbeddingsService } from "./embeddings.service";
 import type { ConversationHistoryService } from "./conversation.service";
+import { normalizeProject } from "./project";
 
 // Jitter values halved from original (0.02/0.05/0.15) because RRF_K=10 produces
 // ~6x more score spread than K=60, amplifying jitter's disruption effect.
@@ -18,13 +20,22 @@ const INTENT_PROFILES: Record<SearchIntent, IntentProfile> = {
 
 const sigmoid = (x: number): number => 1 / (1 + Math.exp(-x));
 
+// Modest same-project ranking boost for scope:"all" searches — same-repo
+// memories win ties without hiding cross-project results.
+const CURRENT_PROJECT_BOOST = 1.15;
+
 export class MemoryService {
   private conversationService: ConversationHistoryService | null = null;
 
   constructor(
     private repository: MemoryRepository,
-    private embeddings: EmbeddingsService
+    private embeddings: EmbeddingsService,
+    private project: string | null = null
   ) {}
+
+  getProject(): string | null {
+    return this.project;
+  }
 
   setConversationService(service: ConversationHistoryService): void {
     this.conversationService = service;
@@ -45,7 +56,8 @@ export class MemoryService {
   async store(
     content: string,
     metadata: Record<string, unknown> = {},
-    embeddingText?: string
+    embeddingText?: string,
+    project?: string
   ): Promise<Memory> {
     const id = randomUUID();
     const now = new Date();
@@ -63,6 +75,7 @@ export class MemoryService {
       usefulness: 0,
       accessCount: 0,
       lastAccessed: now, // Initialize to createdAt for fair discovery
+      project: project !== undefined ? normalizeProject(project) : this.project,
     };
 
     await this.repository.insert(memory);
@@ -200,27 +213,51 @@ export class MemoryService {
     // Widen the candidate pool to account for offset
     const effectiveLimit = offset + limit;
 
+    // Resolve project scope: "all" = no filter (with same-project ranking
+    // boost), "project" = current project, anything else = explicit path.
+    const scope = options?.scope ?? "all";
+    const projectFilter: string | undefined =
+      scope === "all"
+        ? undefined
+        : scope === "project"
+          ? (this.project ?? undefined)
+          : normalizeProject(scope);
+
     const hasDateFilters = options?.after || options?.before;
-    const dateFilters = hasDateFilters
-      ? { after: options.after, before: options.before }
-      : undefined;
+    const memoryFilters =
+      hasDateFilters || projectFilter !== undefined
+        ? {
+            after: options?.after,
+            before: options?.before,
+            project: projectFilter,
+          }
+        : undefined;
 
     // Merge top-level date filters into history filters so after/before
-    // apply uniformly. Explicit history_after/history_before take precedence.
+    // apply uniformly. Explicit history_after/history_before take precedence,
+    // as does an explicit historyFilters.project.
     const historyFilters = options?.historyFilters;
-    const effectiveHistoryFilters: HistoryFilters | undefined = hasDateFilters
-      ? {
-          ...historyFilters,
-          after: historyFilters?.after ?? options?.after,
-          before: historyFilters?.before ?? options?.before,
-        }
-      : historyFilters;
+    const effectiveHistoryFilters: HistoryFilters | undefined =
+      hasDateFilters || projectFilter !== undefined || historyFilters
+        ? {
+            ...historyFilters,
+            after: historyFilters?.after ?? options?.after,
+            before: historyFilters?.before ?? options?.before,
+            project: historyFilters?.project ?? projectFilter,
+          }
+        : historyFilters;
+
+    // Same-project boost only applies to unscoped searches
+    const boost = (resultProject: string | null): number =>
+      scope === "all" && this.project && resultProject === this.project
+        ? CURRENT_PROJECT_BOOST
+        : 1;
 
     // Run memory + history queries in parallel
     const memoryPromise =
       !historyOnly
         ? this.repository
-            .findHybrid(queryEmbedding, query, effectiveLimit * 5, dateFilters)
+            .findHybrid(queryEmbedding, query, effectiveLimit * 5, memoryFilters)
             .then((candidates) =>
               candidates
                 .filter((m) => includeDeleted || !isDeleted(m))
@@ -231,8 +268,11 @@ export class MemoryService {
                   createdAt: candidate.createdAt,
                   updatedAt: candidate.updatedAt,
                   source: "memory" as const,
-                  score: this.computeMemoryScore(candidate, profile, now),
+                  score:
+                    this.computeMemoryScore(candidate, profile, now) *
+                    boost(candidate.project),
                   confidence: computeConfidence(candidate.signals),
+                  project: candidate.project,
                   supersededBy: candidate.supersededBy,
                   usefulness: candidate.usefulness,
                   accessCount: candidate.accessCount,
@@ -251,21 +291,25 @@ export class MemoryService {
               effectiveHistoryFilters
             )
             .then((historyRows) =>
-              historyRows.map((row) => ({
-                id: row.id,
-                content: row.content,
-                metadata: row.metadata,
-                createdAt: row.createdAt,
-                updatedAt: row.createdAt,
-                source: "conversation_history" as const,
-                score: row.rrfScore * historyWeight,
-                confidence: computeConfidence(row.signals),
-                supersededBy: null,
-                sessionId: (row.metadata?.session_id as string) ?? "",
-                role: (row.metadata?.role as string) ?? "unknown",
-                messageIndexStart: (row.metadata?.message_index_start as number) ?? 0,
-                messageIndexEnd: (row.metadata?.message_index_end as number) ?? 0,
-              }))
+              historyRows.map((row) => {
+                const rowProject = (row.metadata?.project as string) ?? null;
+                return {
+                  id: row.id,
+                  content: row.content,
+                  metadata: row.metadata,
+                  createdAt: row.createdAt,
+                  updatedAt: row.createdAt,
+                  source: "conversation_history" as const,
+                  score: row.rrfScore * historyWeight * boost(rowProject),
+                  confidence: computeConfidence(row.signals),
+                  project: rowProject,
+                  supersededBy: null,
+                  sessionId: (row.metadata?.session_id as string) ?? "",
+                  role: (row.metadata?.role as string) ?? "unknown",
+                  messageIndexStart: (row.metadata?.message_index_start as number) ?? 0,
+                  messageIndexEnd: (row.metadata?.message_index_end as number) ?? 0,
+                };
+              })
             )
         : Promise.resolve([] as SearchResult[]);
 
@@ -310,8 +354,17 @@ export class MemoryService {
     ].join("-");
   }
 
+  /**
+   * Resolve a caller-supplied project (possibly a legacy display name or
+   * relative value) or fall back to the server's configured project.
+   */
+  private resolveProject(project?: string): string | undefined {
+    if (project && project.trim().length > 0) return normalizeProject(project);
+    return this.project ?? undefined;
+  }
+
   async setWaypoint(args: {
-    project: string;
+    project?: string;
     branch?: string;
     summary: string;
     completed?: string[];
@@ -326,6 +379,7 @@ export class MemoryService {
       await this.trackAccess(args.memory_ids);
     }
 
+    const project = this.resolveProject(args.project);
     const now = new Date();
     const date = now.toISOString().slice(0, 10);
     const time = now.toISOString().slice(11, 16);
@@ -337,7 +391,7 @@ export class MemoryService {
       return items.map((i) => `- ${i}`).join("\n");
     };
 
-    const content = `# Waypoint - ${args.project}
+    const content = `# Waypoint - ${project ?? "unknown project"}
 **Date:** ${date} ${time} | **Branch:** ${args.branch ?? "unknown"}
 
 ## Summary
@@ -361,14 +415,14 @@ ${list(args.memory_ids)}`;
     const metadata: Record<string, unknown> = {
       ...(args.metadata ?? {}),
       type: "waypoint",
-      project: args.project,
+      project: project ?? null,
       date,
       branch: args.branch ?? "unknown",
       memory_ids: args.memory_ids ?? [],
     };
 
     const memory: Memory = {
-      id: MemoryService.waypointId(args.project),
+      id: MemoryService.waypointId(project),
       content,
       embedding: new Array(this.embeddings.dimension).fill(0),
       metadata,
@@ -378,35 +432,83 @@ ${list(args.memory_ids)}`;
       usefulness: 0,
       accessCount: 0,
       lastAccessed: now, // Initialize to now for consistency
+      project: project ?? null,
     };
 
+    // NOTE: deliberately no UUID_ZERO "global latest" copy — in a shared
+    // database that becomes last-writer-wins across projects. Readers that
+    // don't know their project resolve it from cwd instead.
     await this.repository.upsert(memory);
-
-    // Always update the global (no-project) waypoint so the session-start
-    // hook can find the most recent waypoint without knowing the project name.
-    const globalId = MemoryService.UUID_ZERO;
-    if (memory.id !== globalId) {
-      await this.repository.upsert({ ...memory, id: globalId });
-    }
 
     return memory;
   }
 
+  /**
+   * Find the latest waypoint for a project, trying legacy ID schemes in
+   * order and migrating hits to the canonical ID:
+   *  1. canonical: waypointId(normalized absolute path)
+   *  2. legacy skill-supplied display name: waypointId(basename)
+   *  3. legacy UUID-formatted IDs for both of the above
+   *  4. UUID_ZERO "global latest" — only when its metadata.project matches,
+   *     so one project's pre-migration waypoint never leaks into another
+   */
   async getLatestWaypoint(project?: string): Promise<Memory | null> {
-    const waypoint = await this.get(MemoryService.waypointId(project));
-    if (waypoint) return waypoint;
+    const resolved = this.resolveProject(project);
+    const canonicalId = MemoryService.waypointId(resolved);
 
-    // Fallback: try legacy UUID-formatted waypoint ID and migrate on read
-    const legacyId = MemoryService.legacyWaypointId(project);
-    if (!legacyId) return null;
+    const waypoint = await this.get(canonicalId);
+    if (waypoint && !isDeleted(waypoint)) return waypoint;
 
-    const legacy = await this.repository.findById(legacyId);
-    if (!legacy) return null;
+    const candidateIds: string[] = [];
+    if (resolved) {
+      const display = basename(resolved);
+      candidateIds.push(MemoryService.waypointId(display));
+      const legacyPath = MemoryService.legacyWaypointId(resolved);
+      if (legacyPath) candidateIds.push(legacyPath);
+      const legacyDisplay = MemoryService.legacyWaypointId(display);
+      if (legacyDisplay) candidateIds.push(legacyDisplay);
+    } else {
+      const legacyId = MemoryService.legacyWaypointId(resolved);
+      if (legacyId) candidateIds.push(legacyId);
+    }
 
-    // Migrate: write under new ID, delete old
-    const newId = MemoryService.waypointId(project);
-    await this.repository.upsert({ ...legacy, id: newId });
-    await this.repository.markDeleted(legacyId);
-    return { ...legacy, id: newId };
+    for (const id of candidateIds) {
+      if (id === canonicalId) continue;
+      const legacy = await this.repository.findById(id);
+      if (!legacy || isDeleted(legacy)) continue;
+
+      // Migrate: write under canonical ID, delete old
+      await this.repository.upsert({
+        ...legacy,
+        id: canonicalId,
+        project: resolved ?? legacy.project,
+      });
+      await this.repository.markDeleted(id);
+      return { ...legacy, id: canonicalId, project: resolved ?? legacy.project };
+    }
+
+    // Last resort: the pre-migration UUID_ZERO copy, guarded by project match
+    if (resolved && canonicalId !== MemoryService.UUID_ZERO) {
+      const global = await this.repository.findById(MemoryService.UUID_ZERO);
+      if (global && !isDeleted(global)) {
+        const metaProject = (global.metadata.project as string | undefined) ?? "";
+        const matches =
+          metaProject.length > 0 &&
+          (normalizeProject(metaProject) === resolved ||
+            metaProject.trim().toLowerCase() ===
+              basename(resolved).toLowerCase());
+        if (matches) {
+          await this.repository.upsert({
+            ...global,
+            id: canonicalId,
+            project: resolved,
+          });
+          await this.repository.markDeleted(MemoryService.UUID_ZERO);
+          return { ...global, id: canonicalId, project: resolved };
+        }
+      }
+    }
+
+    return null;
   }
 }

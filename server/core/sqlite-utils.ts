@@ -53,6 +53,11 @@ export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
  * Brute-force KNN search over a vector blob table.
  * Loads all vectors, computes cosine similarity, returns top-K results
  * sorted by descending similarity (ascending distance).
+ *
+ * `candidates` overrides the candidate query — used to pre-filter the scan
+ * (e.g. by project) so filtered searches rank within the filtered set instead
+ * of post-filtering a global top-K (which can return false-empty results).
+ * The SQL must select `id` and `vector` columns.
  */
 type VecTable = "memories_vec" | "conversation_history_vec";
 
@@ -61,10 +66,13 @@ export function knnSearch(
   table: VecTable,
   queryVec: number[],
   k: number,
+  candidates?: { sql: string; params: Array<string | number> },
 ): Array<{ id: string; distance: number }> {
-  const rows = db
-    .prepare(`SELECT id, vector FROM ${table}`)
-    .all() as Array<{ id: string; vector: Buffer }>;
+  const rows = (
+    candidates
+      ? db.prepare(candidates.sql).all(...candidates.params)
+      : db.prepare(`SELECT id, vector FROM ${table}`).all()
+  ) as Array<{ id: string; vector: Buffer }>;
 
   const qv = new Float32Array(queryVec);
   const scored = rows.map((r) => {

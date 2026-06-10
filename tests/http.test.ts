@@ -12,6 +12,7 @@ import type { Config } from "../server/config/index";
 function createTestConfig(dbPath: string): Config {
   return {
     dbPath,
+    project: "/test-project",
     embeddingModel: "Xenova/all-MiniLM-L6-v2",
     embeddingDimension: 384,
     httpPort: 3271,
@@ -200,7 +201,7 @@ describe("HTTP API", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.content).toContain("test-project");
-      expect(body.metadata.project).toBe("test-project");
+      expect(body.metadata.project).toBe("/test-project");
       expect(body.updatedAt).toBeDefined();
     });
 

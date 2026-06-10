@@ -47,6 +47,12 @@ For long content (>1000 chars), provide embedding_text with a searchable summary
               description: "Optional key-value metadata.",
               additionalProperties: true,
             },
+            project: {
+              type: "string",
+              description:
+                "Project to tag this memory with (canonical absolute path). " +
+                "Defaults to the current project — only pass this to file a memory under a different project.",
+            },
           },
           required: ["content"],
         },
@@ -139,7 +145,9 @@ INTENTS:
 - associative: Brainstorm, find connections (high relevance + mild jitter)
 - explore: Stuck/creative mode (balanced + high jitter)
 
-When in doubt, search. Missing context is costlier than an extra query.`,
+When in doubt, search. Missing context is costlier than an extra query.
+
+SCOPE: Memories are stored globally across all projects. By default, search covers every project (results from the current project rank slightly higher and each result carries its project path). Pass scope: "project" when the query is clearly specific to the current repo — it cuts cross-project noise and scan cost.`,
   inputSchema: {
     type: "object",
     properties: {
@@ -147,6 +155,14 @@ When in doubt, search. Missing context is costlier than an extra query.`,
         type: "string",
         description:
           "Natural language search query. Include relevant keywords, project names, or technical terms.",
+      },
+      scope: {
+        type: "string",
+        description:
+          'Project scope: "all" (default) searches every project with a ranking boost for the current one; ' +
+          '"project" restricts to the current project; or pass an explicit canonical project path ' +
+          '(e.g. "/home/user/Development/other-repo") to search that project only.',
+        default: "all",
       },
       intent: {
         type: "string",
@@ -273,7 +289,11 @@ Retrievable via get_waypoint. Only one waypoint per project—new waypoints over
   inputSchema: {
     type: "object",
     properties: {
-      project: { type: "string", description: "Project name." },
+      project: {
+        type: "string",
+        description:
+          "Project to save the waypoint under. Defaults to the current project (detected from cwd) — usually omit this.",
+      },
       branch: { type: "string", description: "Branch name (optional)." },
       summary: { type: "string", description: "2-3 sentences: primary goal, current status." },
       completed: {
@@ -307,7 +327,7 @@ Retrievable via get_waypoint. Only one waypoint per project—new waypoints over
         additionalProperties: true,
       },
     },
-    required: ["project", "summary"],
+    required: ["summary"],
   },
 };
 
@@ -321,7 +341,8 @@ export const getWaypointTool: Tool = {
       project: {
         type: "string",
         description:
-          "Project name to retrieve waypoint for. If omitted, retrieves the default (legacy) waypoint.",
+          "Project to retrieve the waypoint for (canonical absolute path). " +
+          "Defaults to the current project — only pass this to read another project's waypoint.",
       },
     },
   },
