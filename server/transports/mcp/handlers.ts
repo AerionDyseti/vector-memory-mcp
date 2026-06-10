@@ -94,6 +94,7 @@ export async function handleStoreMemories(
     content: string;
     embedding_text?: string;
     metadata?: Record<string, unknown>;
+    project?: string;
   }>;
   try {
     memories = asArray(args?.memories, "memories");
@@ -106,7 +107,8 @@ export async function handleStoreMemories(
     const memory = await service.store(
       item.content,
       item.metadata ?? {},
-      item.embedding_text
+      item.embedding_text,
+      typeof item.project === "string" ? item.project : undefined
     );
     ids.push(memory.id);
   }
@@ -237,6 +239,7 @@ export async function handleSearchMemories(
 
   const results = await service.search(query, intent, {
     limit,
+    scope: asOptionalString(args?.scope),
     includeDeleted,
     includeHistory,
     historyOnly,
@@ -280,7 +283,11 @@ function formatMemoryDetail(
 }
 
 function formatSearchResult(r: SearchResult, includeDeleted: boolean): string {
-  let result = `[${r.source}] ID: ${r.id}\nConfidence: ${r.confidence.toFixed(2)}\nContent: ${r.content}`;
+  let result = `[${r.source}] ID: ${r.id}\nConfidence: ${r.confidence.toFixed(2)}`;
+  if (r.project) {
+    result += `\nProject: ${r.project}`;
+  }
+  result += `\nContent: ${r.content}`;
   if (r.metadata && Object.keys(r.metadata).length > 0) {
     result += `\nMetadata: ${JSON.stringify(r.metadata)}`;
   }
@@ -345,17 +352,15 @@ export async function handleSetWaypoint(
   args: Record<string, unknown> | undefined,
   service: MemoryService
 ): Promise<CallToolResult> {
-  let project: string;
   let summary: string;
   try {
-    project = requireString(args, "project");
     summary = requireString(args, "summary");
   } catch (e) {
     return errorResult(errorText(e));
   }
 
   const memory = await service.setWaypoint({
-    project,
+    project: asOptionalString(args?.project),
     branch: asOptionalString(args?.branch),
     summary,
     completed: args?.completed ? asArray(args.completed, "completed") : [],

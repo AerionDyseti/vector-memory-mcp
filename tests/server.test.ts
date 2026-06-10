@@ -411,7 +411,7 @@ describe("mcp", () => {
         service
       );
       const response = await handleGetWaypoint({ project: "Resonance" }, service);
-      expect(response.content[0].text).toContain("# Waypoint - Resonance");
+      expect(response.content[0].text).toContain("# Waypoint - /Resonance");
       expect(response.content[0].text).toContain("## Memory IDs");
     });
   });
@@ -475,7 +475,7 @@ describe("mcp", () => {
       expect(storeRes.content[0].text).toContain("Waypoint stored");
 
       const getRes = await handleToolCall("get_waypoint", { project: "Resonance" }, service);
-      expect(getRes.content[0].text).toContain("# Waypoint - Resonance");
+      expect(getRes.content[0].text).toContain("# Waypoint - /Resonance");
     });
 
     test("routes to index_conversations (returns error when disabled)", async () => {

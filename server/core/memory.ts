@@ -11,6 +11,8 @@ export interface Memory {
   usefulness: number;
   accessCount: number;
   lastAccessed: Date | null;
+  /** Canonical project path this memory belongs to (null = untagged/legacy). */
+  project: string | null;
 }
 
 export function isDeleted(memory: Memory): boolean {
@@ -28,6 +30,7 @@ export function memoryToDict(memory: Memory): Record<string, unknown> {
     usefulness: memory.usefulness,
     accessCount: memory.accessCount,
     lastAccessed: memory.lastAccessed?.toISOString() ?? null,
+    project: memory.project,
   };
 }
 

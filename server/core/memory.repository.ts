@@ -49,6 +49,7 @@ export class MemoryRepository {
         row.last_accessed != null
           ? new Date(row.last_accessed as number)
           : null,
+      project: (row.project as string) ?? null,
     };
   }
 
@@ -70,8 +71,8 @@ export class MemoryRepository {
     const tx = this.db.transaction(() => {
       this.db
         .prepare(
-          `INSERT INTO memories (id, content, metadata, created_at, updated_at, superseded_by, usefulness, access_count, last_accessed)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO memories (id, content, metadata, created_at, updated_at, superseded_by, usefulness, access_count, last_accessed, project)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           memory.id,
@@ -83,6 +84,7 @@ export class MemoryRepository {
           memory.usefulness,
           memory.accessCount,
           memory.lastAccessed?.getTime() ?? null,
+          memory.project,
         );
 
       this.db
@@ -102,8 +104,8 @@ export class MemoryRepository {
       // Main table supports INSERT OR REPLACE
       this.db
         .prepare(
-          `INSERT OR REPLACE INTO memories (id, content, metadata, created_at, updated_at, superseded_by, usefulness, access_count, last_accessed)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT OR REPLACE INTO memories (id, content, metadata, created_at, updated_at, superseded_by, usefulness, access_count, last_accessed, project)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           memory.id,
@@ -115,6 +117,7 @@ export class MemoryRepository {
           memory.usefulness,
           memory.accessCount,
           memory.lastAccessed?.getTime() ?? null,
+          memory.project,
         );
 
       this.db.prepare("DELETE FROM memories_vec WHERE id = ?").run(memory.id);
@@ -193,29 +196,56 @@ export class MemoryRepository {
 
   /**
    * Hybrid search combining vector KNN and FTS5, fused with Reciprocal Rank Fusion.
-   * Date filters are applied post-RRF on the final row fetch (same pattern as
-   * conversation.repository.ts) because KNN is brute-force JS-side and cannot
-   * be pre-filtered. This means filtered queries may return fewer than `limit`.
+   *
+   * The project filter is applied PRE-candidate-selection (pushed into both
+   * the KNN scan and the FTS query) so project-scoped searches rank within
+   * the project's own corpus — post-filtering a global top-K would return
+   * false-empty results for small projects in a large shared database.
+   *
+   * Date filters remain post-RRF on the final row fetch, so date-filtered
+   * queries may return fewer than `limit` results.
    */
   async findHybrid(
     embedding: number[],
     query: string,
     limit: number,
-    filters?: { after?: Date; before?: Date },
+    filters?: { after?: Date; before?: Date; project?: string },
   ): Promise<HybridRow[]> {
     const candidateLimit = limit * 5;
+    const project = filters?.project;
 
-    // Vector KNN search (brute-force cosine similarity in JS)
-    const vectorResults = knnSearch(this.db, "memories_vec", embedding, candidateLimit);
+    // Vector KNN search (brute-force cosine similarity in JS), pre-filtered
+    // by project when scoped
+    const vectorResults = knnSearch(
+      this.db,
+      "memories_vec",
+      embedding,
+      candidateLimit,
+      project !== undefined
+        ? {
+            sql: `SELECT v.id, v.vector FROM memories_vec v
+                  JOIN memories m ON v.id = m.id WHERE m.project = ?`,
+            params: [project],
+          }
+        : undefined,
+    );
 
-    // Full-text search
+    // Full-text search, pre-filtered by project when scoped
     const ftsQuery = sanitizeFtsQuery(query);
     const ftsResults: Array<{ id: string }> = ftsQuery
-      ? (this.db
-          .prepare(
-            "SELECT id FROM memories_fts WHERE memories_fts MATCH ? LIMIT ?",
-          )
-          .all(ftsQuery, candidateLimit) as Array<{ id: string }>)
+      ? project !== undefined
+        ? (this.db
+            .prepare(
+              `SELECT memories_fts.id FROM memories_fts
+               JOIN memories m ON memories_fts.id = m.id
+               WHERE memories_fts MATCH ? AND m.project = ? LIMIT ?`,
+            )
+            .all(ftsQuery, project, candidateLimit) as Array<{ id: string }>)
+        : (this.db
+            .prepare(
+              "SELECT id FROM memories_fts WHERE memories_fts MATCH ? LIMIT ?",
+            )
+            .all(ftsQuery, candidateLimit) as Array<{ id: string }>)
       : [];
 
     // Compute RRF scores with search signals for confidence scoring

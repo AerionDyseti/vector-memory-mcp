@@ -36,6 +36,8 @@ bun run warmup        # download ML models
 | `server/core/conversation.service.ts` | Conversation indexing service |
 | `server/core/embeddings.service.ts` | Local embeddings via ONNX Runtime + @huggingface/tokenizers |
 | `server/core/migration.service.ts` | Cross-format database migration |
+| `server/core/consolidation.service.ts` | Repo-local → global db consolidation (`consolidate` CLI) |
+| `server/core/project.ts` | Canonical project identity (`normalizeProject`) |
 | `server/core/parsers/` | Session log parsers (Claude Code JSONL) |
 | `server/core/memory.ts` | Memory type definitions |
 | `server/core/conversation.ts` | Conversation type definitions |
@@ -154,7 +156,11 @@ Be proactive about saving memories. Any time something potentially useful for fu
 
 ## Important Conventions
 
-- All data stored in `.vector-memory/` directory (single SQLite file: `memories.db`)
+- All data stored in a single **global** SQLite file: `~/.vector-memory/memories.db`, shared by every project. Memories are tagged with a `project` column (canonical absolute path of the cwd, via `normalizeProject()` in `server/core/project.ts`). Repo-local dbs remain available via `--db-file` / `VECTOR_MEMORY_DB_PATH`
+- `search_memories` defaults to `scope: "all"` (cross-project, current project boosted); `scope: "project"` restricts to the current repo. Project filters are **pre-filtered** into KNN/FTS candidate selection — never post-filter a global top-K
+- Waypoints are keyed per-project (`wp:<sha256 of normalized path>`); there is deliberately no global UUID_ZERO waypoint copy (last-writer-wins clobber in a shared db)
+- `consolidate` CLI subcommand imports legacy repo-local `.vector-memory/` dbs into the global store (`server/core/consolidation.service.ts`)
+- Multi-process safety: `busy_timeout` is set before the WAL switch; the legacy vec0 cleanup runs only behind a read-only probe + exclusive lock; non-idempotent migrations are gated by `PRAGMA user_version` inside `BEGIN IMMEDIATE`
 - Embedding model: `Xenova/all-MiniLM-L6-v2` (384 dimensions, loaded lazily on first use)
 - Embeddings are local via ONNX Runtime + `@huggingface/tokenizers` — no API keys needed
 - MCP tool handlers may receive array args as JSON strings; use the `asArray()` helper from `server/transports/mcp/handlers.ts`

@@ -70,6 +70,8 @@ export interface SearchResult {
   score: number;
   /** Absolute relevance confidence (0.0-1.0). Based on cosine similarity + retrieval agreement. */
   confidence: number;
+  /** Canonical project path this result belongs to (null = untagged/legacy). */
+  project: string | null;
   // Memory-specific fields
   supersededBy: string | null;
   usefulness?: number;
@@ -115,6 +117,12 @@ export interface HistoryFilters {
 /** Options for the integrated search across both sources */
 export interface SearchOptions {
   limit?: number;
+  /**
+   * Project scope: "all" (default) searches every project with a ranking
+   * boost for the current one; "project" restricts to the current project;
+   * any other string is an explicit canonical project path to restrict to.
+   */
+  scope?: string;
   includeDeleted?: boolean;
   includeHistory?: boolean;
   historyOnly?: boolean;

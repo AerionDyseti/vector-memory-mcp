@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import type {
   ConversationHybridRow,
   HistoryFilters,
+  IndexedSession,
 } from "./conversation";
 import {
   serializeVector,
@@ -14,6 +15,75 @@ import {
 
 export class ConversationRepository {
   constructor(private db: Database) {}
+
+  // ---------------------------------------------------------------------------
+  // Index state (replaces conversation_index_state.json — lives in the db so
+  // concurrent server processes share one consistent view)
+  // ---------------------------------------------------------------------------
+
+  loadIndexState(): Map<string, IndexedSession> {
+    const rows = this.db
+      .prepare("SELECT * FROM conversation_index_state")
+      .all() as Array<{
+      session_id: string;
+      file_path: string;
+      project: string;
+      last_modified: number;
+      chunk_count: number;
+      message_count: number;
+      indexed_at: number;
+      first_message_at: number;
+      last_message_at: number;
+    }>;
+
+    const map = new Map<string, IndexedSession>();
+    for (const r of rows) {
+      map.set(r.session_id, {
+        sessionId: r.session_id,
+        filePath: r.file_path,
+        project: r.project,
+        lastModified: r.last_modified,
+        chunkCount: r.chunk_count,
+        messageCount: r.message_count,
+        indexedAt: new Date(r.indexed_at),
+        firstMessageAt: new Date(r.first_message_at),
+        lastMessageAt: new Date(r.last_message_at),
+      });
+    }
+    return map;
+  }
+
+  upsertIndexState(sessions: IndexedSession[]): void {
+    if (sessions.length === 0) return;
+    const upsert = this.db.prepare(
+      `INSERT OR REPLACE INTO conversation_index_state
+        (session_id, file_path, project, last_modified, chunk_count, message_count, indexed_at, first_message_at, last_message_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    const tx = this.db.transaction(() => {
+      for (const s of sessions) {
+        upsert.run(
+          s.sessionId,
+          s.filePath,
+          s.project,
+          s.lastModified,
+          s.chunkCount,
+          s.messageCount,
+          s.indexedAt.getTime(),
+          s.firstMessageAt.getTime(),
+          s.lastMessageAt.getTime()
+        );
+      }
+    });
+    tx();
+  }
+
+  countIndexState(): number {
+    const row = this.db
+      .prepare("SELECT COUNT(*) AS n FROM conversation_index_state")
+      .get() as { n: number };
+    return row.n;
+  }
 
   async insertBatch(
     rows: Array<{
@@ -188,11 +258,14 @@ export class ConversationRepository {
   /**
    * Hybrid search combining vector KNN and FTS5, fused with Reciprocal Rank Fusion.
    *
-   * NOTE: Filters (session, role, project, date) are applied AFTER candidate selection
-   * and RRF scoring, not pushed into the KNN/FTS queries. This is an intentional
-   * performance tradeoff — KNN is brute-force JS-side (no SQL pre-filter possible),
-   * and filtering post-RRF avoids duplicating filter logic across both retrieval paths.
-   * The consequence is that filtered queries may return fewer than `limit` results.
+   * The project filter is applied PRE-candidate-selection (pushed into both
+   * the KNN scan and the FTS query) so project-scoped searches rank within
+   * the project's own chunks — post-filtering a global top-K would return
+   * false-empty results for projects with few chunks in a shared database.
+   *
+   * Remaining filters (session, role, date) are applied AFTER candidate
+   * selection and RRF scoring, so those filtered queries may return fewer
+   * than `limit` results.
    */
   async findHybrid(
     embedding: number[],
@@ -201,20 +274,46 @@ export class ConversationRepository {
     filters?: HistoryFilters
   ): Promise<ConversationHybridRow[]> {
     const candidateCount = limit * 5;
+    const project = filters?.project;
 
-    // Vector KNN search (brute-force cosine similarity in JS)
-    const vecResults = knnSearch(this.db, "conversation_history_vec", embedding, candidateCount);
+    // Vector KNN search (brute-force cosine similarity in JS), pre-filtered
+    // by project when scoped
+    const vecResults = knnSearch(
+      this.db,
+      "conversation_history_vec",
+      embedding,
+      candidateCount,
+      project !== undefined
+        ? {
+            sql: `SELECT v.id, v.vector FROM conversation_history_vec v
+                  JOIN conversation_history c ON v.id = c.id WHERE c.project = ?`,
+            params: [project],
+          }
+        : undefined,
+    );
 
-    // FTS5 search
+    // FTS5 search, pre-filtered by project when scoped
     const ftsQuery = sanitizeFtsQuery(query);
-    const ftsResults = this.db
-      .prepare(
-        `SELECT id FROM conversation_history_fts
-         WHERE conversation_history_fts MATCH ?
-         ORDER BY rank
-         LIMIT ?`
-      )
-      .all(ftsQuery, candidateCount) as Array<{ id: string }>;
+    const ftsResults = (
+      project !== undefined
+        ? this.db
+            .prepare(
+              `SELECT conversation_history_fts.id FROM conversation_history_fts
+               JOIN conversation_history c ON conversation_history_fts.id = c.id
+               WHERE conversation_history_fts MATCH ? AND c.project = ?
+               ORDER BY rank
+               LIMIT ?`
+            )
+            .all(ftsQuery, project, candidateCount)
+        : this.db
+            .prepare(
+              `SELECT id FROM conversation_history_fts
+               WHERE conversation_history_fts MATCH ?
+               ORDER BY rank
+               LIMIT ?`
+            )
+            .all(ftsQuery, candidateCount)
+    ) as Array<{ id: string }>;
 
     // Compute RRF scores with search signals for confidence scoring
     const signalsMap = hybridRRFWithSignals(vecResults, ftsResults);
