@@ -170,3 +170,6 @@ package-lock.json
 
 # Git worktrees
 .worktrees/
+
+# Local reference material (cloned repos for study, not part of the project)
+references/
