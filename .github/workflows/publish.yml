@@ -64,7 +64,11 @@ jobs:
         run: |
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          # --ignore-scripts: skip the postversion (sync-version) hook. The tag
+          # build only needs package.json's version for `npm publish`; the synced
+          # manifests are already committed, and postversion needs Bun, which is
+          # installed in a later step (running it here fails with "bun: not found").
+          npm version "$VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
           echo "Set package.json version to $VERSION"
 
       - name: Setup Bun
