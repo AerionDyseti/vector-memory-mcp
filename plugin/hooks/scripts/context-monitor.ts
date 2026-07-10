@@ -288,7 +288,9 @@ function renderAlert(report: HealthReport): OutputBuilder {
   body.appendList(report.issues, { bullet: ICONS.warn });
   body.appendLine();
   body.appendLine(advice);
-  return new OutputBuilder().appendBox(body.render(), { title, color });
+  // Leading newline: hook-kit boxes render glued to the preceding line
+  // otherwise (the top border needs to start on its own row).
+  return new OutputBuilder().appendLine().appendBox(body.render(), { title, color });
 }
 
 // ── Main ────────────────────────────────────────────────────────────
