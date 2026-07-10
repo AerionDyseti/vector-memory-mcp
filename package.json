@@ -35,6 +35,8 @@
     "benchmark:update": "bun run scripts/update-benchmarks.ts",
     "test:preload": "bun run tests/preload.ts",
     "smoke": "bun run scripts/smoke-test.ts",
+    "vendor:hooks": "bun run scripts/vendor-hook-kit.ts",
+    "vendor:hooks:latest": "bun run scripts/vendor-hook-kit.ts --update",
     "warmup": "bun run scripts/warmup.ts",
     "postinstall": "bun run scripts/warmup.ts",
     "prepublishOnly": "bunx tsc --noEmit",
@@ -57,6 +59,7 @@
     "onnxruntime-node": "^1.21.0"
   },
   "devDependencies": {
+    "@aeriondyseti/hook-kit": "^1.0.0",
     "@types/bun": "latest",
     "typescript": "^5.0.0"
   },

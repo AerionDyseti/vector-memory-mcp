@@ -17,6 +17,7 @@
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
+import { vendorHookKit } from "./vendor-hook-kit";
 
 const ROOT = join(import.meta.dir, "..");
 const PKG_PATH = join(ROOT, "package.json");
@@ -79,3 +80,20 @@ for (const server of Object.values(mcp.mcpServers) as any[]) {
 writeFileSync(MCP_PATH, JSON.stringify(mcp, null, 2) + "\n");
 
 console.error(`Synced version ${version} (${branch} → @${distTag}) → plugin.json, marketplace.json, .mcp.json`);
+
+// ── Refresh vendored hook-kit to the latest in-range (1.x) release ───
+//
+// Runs only for local publish prep. In CI the committed bundle + lockfile
+// are authoritative (a tag is immutable) and the freshness guard verifies
+// them — auto-updating there would drift the tree out from under the tag.
+const inCI = process.env.CI === "true" || !!process.env.GITHUB_ACTIONS;
+if (!inCI) {
+  try {
+    const shipped = await vendorHookKit({ update: true });
+    console.error(
+      `Refreshed vendored hook-kit → ${shipped.join(", ")} (stage bun.lock + plugin/hooks/scripts/vendor/ with the release commit)`
+    );
+  } catch (e) {
+    console.error(`[sync-version] hook-kit refresh skipped: ${(e as Error).message}`);
+  }
+}
